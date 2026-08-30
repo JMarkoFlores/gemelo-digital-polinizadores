@@ -1,4 +1,4 @@
-import { Suspense, lazy, useMemo, useState } from 'react'
+import { Suspense, lazy, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import api from '../lib/api'
 import SpinnerBlock from '../components/SpinnerBlock'
@@ -22,6 +22,21 @@ export default function ClientOptimizePage() {
   const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [modelReady, setModelReady] = useState(null)   // null = checking, true/false = known
+  const [modelStatus, setModelStatus] = useState('')
+
+  // Check model readiness on mount
+  useEffect(() => {
+    api.get('/api/model/status')
+      .then((res) => {
+        setModelReady(res.data.model_ready)
+        setModelStatus(res.data.model_status ?? '')
+      })
+      .catch(() => {
+        setModelReady(false)
+        setModelStatus('No se pudo verificar el estado del modelo IA.')
+      })
+  }, [])
 
   const payload = useMemo(() => ({ geometry, bbox: geometry ? bboxFromGeometry(geometry) : null, ...scenario }), [geometry, scenario])
 
@@ -51,6 +66,23 @@ export default function ClientOptimizePage() {
           {t('clientOpt_desc')}
         </p>
       </section>
+      {/* Model status banner */}
+      {modelReady === null && (
+        <StatusBanner tone="info">Verificando estado del modelo IA…</StatusBanner>
+      )}
+      {modelReady === false && (
+        <StatusBanner tone="error">
+          ⚠️ Modelo IA no disponible — {modelStatus}. Ve a{' '}
+          <a href="http://localhost:8501" target="_blank" rel="noreferrer" className="underline font-semibold">
+            Streamlit (localhost:8501)
+          </a>{' '}
+          → pestaña <strong>Datos y pipeline</strong> → <strong>Entrenamiento</strong> → <strong>Exportación</strong> para generar el modelo.
+        </StatusBanner>
+      )}
+      {modelReady === true && (
+        <StatusBanner tone="success">✅ Modelo IA listo — {modelStatus}</StatusBanner>
+      )}
+
       {error ? <StatusBanner tone="error">{error}</StatusBanner> : null}
       {result ? (
         <div className="flex justify-end">
@@ -68,7 +100,7 @@ export default function ClientOptimizePage() {
       <Suspense fallback={<SpinnerBlock label={t('clientOpt_loadingMap')} />}>
         <MapSelectionCard geometry={geometry} onGeometryChange={setGeometry} baseline={result?.baseline} />
       </Suspense>
-      <ScenarioPanel values={scenario} onChange={(key, value) => setScenario((prev) => ({ ...prev, [key]: value }))} onRun={runSimulation} disabled={!geometry} loading={loading} />
+      <ScenarioPanel values={scenario} onChange={(key, value) => setScenario((prev) => ({ ...prev, [key]: value }))} onRun={runSimulation} disabled={!geometry || !modelReady} loading={loading} />
       <Suspense fallback={<SpinnerBlock label={t('clientOpt_loadingViz')} />}>
         <ResultsDashboard result={result} />
       </Suspense>
