@@ -73,27 +73,55 @@ export default function AppShell() {
                 </NavLink>
               ))}
             </nav>
-            <div className="mt-auto space-y-3 pt-6">
+            <div className="mt-auto pt-6">
               <div className="flex gap-2">
-                <button onClick={toggleTheme} className="flex-1 rounded-2xl bg-slate-200 px-3 py-2 text-sm dark:bg-slate-800">
-                  {theme === 'dark' ? 'Light' : 'Dark'}
+                {/* Botón tema: luna = modo oscuro activo, sol = modo claro activo */}
+                <button
+                  onClick={toggleTheme}
+                  title={theme === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+                  className="flex flex-1 items-center justify-center rounded-2xl bg-slate-200 p-2.5 transition hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700"
+                >
+                  {theme === 'dark' ? (
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="4"/>
+                      <line x1="12" y1="2" x2="12" y2="6"/>
+                      <line x1="12" y1="18" x2="12" y2="22"/>
+                      <line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/>
+                      <line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/>
+                      <line x1="2" y1="12" x2="6" y2="12"/>
+                      <line x1="18" y1="12" x2="22" y2="12"/>
+                      <line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/>
+                      <line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/>
+                    </svg>
+                  ) : (
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+                    </svg>
+                  )}
                 </button>
+
+                {/* Botón idioma: texto EN / ES */}
                 <button
                   onClick={() => i18n.changeLanguage(i18n.language === 'es' ? 'en' : 'es')}
-                  className="rounded-2xl bg-slate-200 px-3 py-2 text-sm dark:bg-slate-800"
+                  title={i18n.language === 'es' ? 'Switch to English' : 'Cambiar a Español'}
+                  className="flex flex-1 items-center justify-center rounded-2xl bg-slate-200 p-2.5 text-sm font-bold tracking-wider transition hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700"
                 >
-                  {i18n.language.toUpperCase()}
+                  {i18n.language === 'es' ? 'ES' : 'EN'}
+                </button>
+
+                {/* Botón salir: icono puerta con flecha */}
+                <button
+                  onClick={() => { logout(); navigate('/login') }}
+                  title={t('logout')}
+                  className="flex flex-1 items-center justify-center rounded-2xl bg-primary-600 p-2.5 text-white transition hover:bg-primary-700"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                    <polyline points="16 17 21 12 16 7"/>
+                    <line x1="21" y1="12" x2="9" y2="12"/>
+                  </svg>
                 </button>
               </div>
-              <button
-                onClick={() => {
-                  logout()
-                  navigate('/login')
-                }}
-                className="w-full rounded-2xl bg-primary-600 px-4 py-3 text-sm font-medium text-white"
-              >
-                {t('logout')}
-              </button>
             </div>
           </div>
         </aside>
