@@ -24,10 +24,10 @@ export default function ClientOptimizePage() {
   const [error, setError] = useState('')
   const [modelReady, setModelReady] = useState(null)   // null = checking, true/false = known
   const [modelStatus, setModelStatus] = useState('')
+  const [reloading, setReloading] = useState(false)
 
-  // Check model readiness on mount
-  useEffect(() => {
-    api.get('/api/model/status')
+  const checkModelStatus = () => {
+    return api.get('/api/model/status')
       .then((res) => {
         setModelReady(res.data.model_ready)
         setModelStatus(res.data.model_status ?? '')
@@ -36,7 +36,30 @@ export default function ClientOptimizePage() {
         setModelReady(false)
         setModelStatus('No se pudo verificar el estado del modelo IA.')
       })
-  }, [])
+  }
+
+  // Check model readiness on mount and poll
+  useEffect(() => {
+    checkModelStatus()
+    let interval = null
+    if (modelReady === false) {
+      interval = setInterval(checkModelStatus, 8000)
+    }
+    return () => clearInterval(interval)
+  }, [modelReady])
+
+  const handleManualReload = async () => {
+    setReloading(true)
+    try {
+      const res = await api.post('/api/model/reload')
+      setModelReady(res.data.model_ready)
+      setModelStatus(res.data.model_status ?? '')
+    } catch {
+      await checkModelStatus()
+    } finally {
+      setReloading(false)
+    }
+  }
 
   const payload = useMemo(() => ({ geometry, bbox: geometry ? bboxFromGeometry(geometry) : null, ...scenario }), [geometry, scenario])
 
@@ -77,6 +100,13 @@ export default function ClientOptimizePage() {
             Streamlit (localhost:8501)
           </a>{' '}
           → pestaña <strong>Datos y pipeline</strong> → <strong>Entrenamiento</strong> → <strong>Exportación</strong> para generar el modelo.
+          <button 
+            onClick={handleManualReload} 
+            disabled={reloading}
+            className="ml-4 underline font-bold disabled:opacity-50"
+          >
+            {reloading ? '⏳ Recargando...' : '🔄 Forzar recarga de modelo'}
+          </button>
         </StatusBanner>
       )}
       {modelReady === true && (

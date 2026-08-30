@@ -46,8 +46,11 @@ async def lifespan(app: FastAPI):
     finally:
         db.close()
     model_store.load()
+    # Auto-reload model whenever Streamlit exports a new .h5 to the shared volume
+    model_store.start_watcher(poll_interval=5.0)
     app.state.model_store = model_store
     yield
+    model_store.stop_watcher()
 
 
 app = FastAPI(title=settings.app_name, lifespan=lifespan)
@@ -124,7 +127,11 @@ async def me(current_user: Usuario = Depends(get_current_user)):
 
 
 @app.post("/api/model/reload")
-async def reload_model(_: Usuario = Depends(require_role("admin"))):
+async def reload_model(_: Usuario = Depends(require_role("admin", "cliente"))):
+    """Force the backend to re-read the model file from disk.
+    Accessible to both admin and cliente so the React frontend can
+    trigger a reload after Streamlit exports the model.
+    """
     model_store.reload()
     return {"model_ready": model_store.is_ready, "model_status": model_store.status_message, "model_version": model_store.version}
 
