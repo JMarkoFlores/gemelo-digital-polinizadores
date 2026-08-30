@@ -1,0 +1,73 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: gemelos_db
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-gemelos_db}
+      POSTGRES_USER: ${POSTGRES_USER:-gemelos_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-gemelos_password}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-gemelos_user} -d ${POSTGRES_DB:-gemelos_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+    container_name: gemelos_backend
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg2://gemelos_user:gemelos_password@db:5432/gemelos_db}
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      JWT_ACCESS_TOKEN_EXPIRE_MINUTES: ${JWT_ACCESS_TOKEN_EXPIRE_MINUTES:-60}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-Admin12345!}
+      CLIENT_EMAIL: ${CLIENT_EMAIL:-cliente@example.com}
+      CLIENT_PASSWORD: ${CLIENT_PASSWORD:-Cliente12345!}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}
+      WATCHFILES_FORCE_POLLING: "true"
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    volumes:
+      - ./backend:/app
+      - modelos_ia_volume:/modelos_ia/
+    depends_on:
+      db:
+        condition: service_healthy
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir /app/app
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: gemelos_frontend
+    environment:
+      VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000}
+    ports:
+      - "${FRONTEND_PORT:-5173}:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0 --port 5173"
+
+  streamlit:
+    build:
+      context: ./streamlit_app
+    container_name: gemelos_streamlit
+    ports:
+      - "${STREAMLIT_PORT:-8501}:8501"
+    volumes:
+      - ./streamlit_app:/app
+      - modelos_ia_volume:/modelos_ia/
+    command: streamlit run app.py --server.address=0.0.0.0 --server.port=8501
+
+volumes:
+  postgres_data:
+  modelos_ia_volume:
