@@ -275,8 +275,9 @@ def run_simulation(payload: dict[str, Any]) -> dict[str, Any]:
             "geometry": context.geometry,
             "area_km2": round(context.area_km2, 2),
             "region_label": context.region_label,
+            "center": [context.centroid_lat, context.centroid_lon],
         },
-        "pareto_front": pareto_front[:20],
+        "pareto_front": pareto_front,
         "best_solution": {
             **best_solution,
             "selection_reason": "Best compromise maximizing pollinator gains while protecting yield.",
