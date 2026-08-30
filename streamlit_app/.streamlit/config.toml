@@ -1,0 +1,9 @@
+[theme]
+# Fondo oscuro profesional — contraste WCAG AA garantizado
+primaryColor        = "#22c55e"
+backgroundColor     = "#0f172a"
+secondaryBackgroundColor = "#1e293b"
+textColor           = "#f1f5f9"
+
+[server]
+headless = true
