@@ -1,4 +1,5 @@
 import { Suspense, lazy, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import api from '../lib/api'
 import SpinnerBlock from '../components/SpinnerBlock'
 const MapSelectionCard = lazy(() => import('../components/MapSelectionCard'))
@@ -15,6 +16,7 @@ function bboxFromGeometry(geometry) {
 }
 
 export default function ClientOptimizePage() {
+  const { t } = useTranslation()
   const [geometry, setGeometry] = useState(null)
   const [scenario, setScenario] = useState({ pesticide_level: 30, min_natural_area_pct: 20, climate_scenario: 'current' })
   const [result, setResult] = useState(null)
@@ -25,7 +27,7 @@ export default function ClientOptimizePage() {
 
   const runSimulation = async () => {
     if (!geometry) {
-      setError('Primero debes dibujar un area en el mapa.')
+      setError(t('clientOpt_errorNoGeom'))
       return
     }
     setLoading(true)
@@ -34,7 +36,7 @@ export default function ClientOptimizePage() {
       const response = await api.post('/api/simular', payload)
       setResult(response.data)
     } catch (requestError) {
-      setError(requestError.response?.data?.detail || 'No fue posible ejecutar la optimizacion.')
+      setError(requestError.response?.data?.detail || t('clientOpt_errorRun'))
     } finally {
       setLoading(false)
     }
@@ -43,10 +45,10 @@ export default function ClientOptimizePage() {
   return (
     <div className="space-y-6">
       <section>
-        <p className="text-sm uppercase tracking-[0.3em] text-primary-600">Cliente</p>
-        <h1 className="mt-3 text-4xl font-semibold">Optimizacion de paisaje agricola</h1>
+        <p className="text-sm uppercase tracking-[0.3em] text-primary-600">{t('clientOpt_badge')}</p>
+        <h1 className="mt-3 text-4xl font-semibold">{t('clientOpt_title')}</h1>
         <p className="mt-2 max-w-3xl text-slate-600 dark:text-slate-300">
-          Dibuja tu zona de interes, ajusta restricciones y ejecuta el optimizador multiobjetivo sobre el surrogate entrenado en Streamlit.
+          {t('clientOpt_desc')}
         </p>
       </section>
       {error ? <StatusBanner tone="error">{error}</StatusBanner> : null}
@@ -59,15 +61,15 @@ export default function ClientOptimizePage() {
             }}
             className="rounded-2xl bg-slate-200 px-4 py-2 text-sm dark:bg-slate-800"
           >
-            Exportar resultado actual a PDF
+            {t('clientOpt_exportPdf')}
           </button>
         </div>
       ) : null}
-      <Suspense fallback={<SpinnerBlock label="Cargando mapa interactivo" />}>
+      <Suspense fallback={<SpinnerBlock label={t('clientOpt_loadingMap')} />}>
         <MapSelectionCard geometry={geometry} onGeometryChange={setGeometry} baseline={result?.baseline} />
       </Suspense>
       <ScenarioPanel values={scenario} onChange={(key, value) => setScenario((prev) => ({ ...prev, [key]: value }))} onRun={runSimulation} disabled={!geometry} loading={loading} />
-      <Suspense fallback={<SpinnerBlock label="Cargando visualizaciones" />}>
+      <Suspense fallback={<SpinnerBlock label={t('clientOpt_loadingViz')} />}>
         <ResultsDashboard result={result} />
       </Suspense>
     </div>

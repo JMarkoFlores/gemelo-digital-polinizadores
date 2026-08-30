@@ -7,13 +7,13 @@ import SpinnerBlock from './SpinnerBlock'
 
 const navItems = {
   cliente: [
-    { to: '/client', label: 'Optimizacion' },
-    { to: '/client/history', label: 'Historial' },
+    { to: '/client', labelKey: 'nav_optimize' },
+    { to: '/client/history', labelKey: 'nav_history' },
   ],
   admin: [
-    { to: '/admin', label: 'Resumen' },
-    { to: '/admin/users', label: 'Usuarios' },
-    { to: '/admin/simulations', label: 'Simulaciones' },
+    { to: '/admin', labelKey: 'nav_summary' },
+    { to: '/admin/users', labelKey: 'nav_users' },
+    { to: '/admin/simulations', labelKey: 'nav_simulations' },
   ],
 }
 
@@ -69,7 +69,7 @@ export default function AppShell() {
                     `block rounded-2xl px-4 py-3 text-sm transition ${isActive ? 'bg-primary-600 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700'}`
                   }
                 >
-                  {sidebarOpen ? item.label : item.label.slice(0, 1)}
+                  {sidebarOpen ? t(item.labelKey) : t(item.labelKey).slice(0, 1)}
                 </NavLink>
               ))}
             </nav>
@@ -126,7 +126,7 @@ export default function AppShell() {
           </div>
         </aside>
         <main className="flex-1 p-4 md:p-8">
-          <Suspense fallback={<SpinnerBlock label="Cargando modulo" />}>
+          <Suspense fallback={<SpinnerBlock label={t('loadingModule')} />}>
             <Outlet />
           </Suspense>
         </main>
