@@ -41,7 +41,7 @@ export default function AppShell() {
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900 transition-colors dark:bg-slate-950 dark:text-slate-100">
       <div className="flex min-h-screen">
-        <aside className="relative z-20">
+        <aside className="sticky top-0 z-20 h-screen shrink-0">
           <div
             className={`flex h-full flex-col border-r border-slate-200 bg-white/90 px-4 py-6 shadow-panel transition-all dark:border-slate-800 dark:bg-slate-900/85 ${sidebarOpen ? 'w-72' : 'w-24'}`}
           >
