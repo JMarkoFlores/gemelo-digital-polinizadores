@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { FeatureGroup, MapContainer, TileLayer, useMap } from 'react-leaflet'
+import { useTranslation } from 'react-i18next'
 import 'leaflet-draw'
 import L from '../lib/leaflet'
 import PanelCard from './PanelCard'
@@ -60,6 +61,7 @@ function DrawControl({ onChange }) {
 }
 
 export default function MapSelectionCard({ geometry, onGeometryChange, baseline }) {
+  const { t } = useTranslation()
   const [view, setView] = useState([-8.08, -78.85])
 
   useEffect(() => {
@@ -71,8 +73,8 @@ export default function MapSelectionCard({ geometry, onGeometryChange, baseline 
 
   return (
     <PanelCard
-      title="Seleccion del area"
-      subtitle="Dibuja un poligono o rectangulo sobre el valle de interes. El frontend captura el GeoJSON real y lo usa para optimizar."
+      title={t('map_title')}
+      subtitle={t('map_sub')}
     >
       <div className="grid gap-4 xl:grid-cols-[1.45fr_0.75fr]">
         <div className="h-[420px] overflow-hidden rounded-[1.5rem] border border-slate-200 dark:border-slate-800">
@@ -86,26 +88,26 @@ export default function MapSelectionCard({ geometry, onGeometryChange, baseline 
         </div>
         <div className="space-y-4">
           {geometry ? (
-            <StatusBanner tone="success">Area capturada correctamente. Ya puedes configurar el escenario y lanzar la optimizacion.</StatusBanner>
+            <StatusBanner tone="success">{t('map_captured')}</StatusBanner>
           ) : (
-            <StatusBanner>Dibuja un poligono o rectangulo para activar la simulacion.</StatusBanner>
+            <StatusBanner>{t('map_drawPrompt')}</StatusBanner>
           )}
           <div className="rounded-[1.5rem] bg-slate-50 p-4 text-sm dark:bg-slate-950/50">
-            <p className="font-medium">GeoJSON actual</p>
+            <p className="font-medium">{t('map_currentGeoJson')}</p>
             <pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap text-xs text-slate-500 dark:text-slate-400">
-              {geometry ? JSON.stringify(geometry, null, 2) : 'Sin geometria seleccionada'}
+              {geometry ? JSON.stringify(geometry, null, 2) : t('map_noGeom')}
             </pre>
           </div>
           {baseline ? (
             <div className="rounded-[1.5rem] border border-slate-200 p-4 text-sm dark:border-slate-800">
-              <p className="font-medium">Linea base calculada</p>
+              <p className="font-medium">{t('map_baselineTitle')}</p>
               <div className="mt-3 grid grid-cols-2 gap-3">
                 <div>
-                  <p className="text-slate-500 dark:text-slate-400">Rendimiento</p>
+                  <p className="text-slate-500 dark:text-slate-400">{t('map_yield')}</p>
                   <p className="text-lg font-semibold">{baseline.crop_yield_index?.toFixed?.(3) ?? baseline.crop_yield_index}</p>
                 </div>
                 <div>
-                  <p className="text-slate-500 dark:text-slate-400">Polinizadores</p>
+                  <p className="text-slate-500 dark:text-slate-400">{t('map_pollinators')}</p>
                   <p className="text-lg font-semibold">{baseline.pollinator_abundance_index?.toFixed?.(3) ?? baseline.pollinator_abundance_index}</p>
                 </div>
               </div>

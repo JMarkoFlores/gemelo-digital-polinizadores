@@ -101,6 +101,17 @@ const resources = {
       clientOpt_loadingMap: 'Cargando mapa interactivo',
       clientOpt_loadingViz: 'Cargando visualizaciones',
 
+      // MapSelectionCard
+      map_title: 'Seleccion del area',
+      map_sub: 'Dibuja un poligono o rectangulo sobre el valle de interes. El frontend captura el GeoJSON real y lo usa para optimizar.',
+      map_captured: 'Area capturada correctamente. Ya puedes configurar el escenario y lanzar la optimizacion.',
+      map_drawPrompt: 'Dibuja un poligono o rectangulo para activar la simulacion.',
+      map_currentGeoJson: 'GeoJSON actual',
+      map_noGeom: 'Sin geometria seleccionada',
+      map_baselineTitle: 'Linea base calculada',
+      map_yield: 'Rendimiento',
+      map_pollinators: 'Polinizadores',
+
       // Client History
       clientHist_badge: 'Cliente',
       clientHist_title: 'Historial de simulaciones',
@@ -265,6 +276,17 @@ const resources = {
       clientOpt_exportPdf: 'Export current result to PDF',
       clientOpt_loadingMap: 'Loading interactive map',
       clientOpt_loadingViz: 'Loading visualizations',
+
+      // MapSelectionCard
+      map_title: 'Area selection',
+      map_sub: 'Draw a polygon or rectangle over the valley of interest. The frontend captures the real GeoJSON and uses it to optimize.',
+      map_captured: 'Area successfully captured. You can now configure the scenario and run the optimization.',
+      map_drawPrompt: 'Draw a polygon or rectangle to activate the simulation.',
+      map_currentGeoJson: 'Current GeoJSON',
+      map_noGeom: 'No geometry selected',
+      map_baselineTitle: 'Calculated baseline',
+      map_yield: 'Yield',
+      map_pollinators: 'Pollinators',
 
       // Client History
       clientHist_badge: 'Client',
