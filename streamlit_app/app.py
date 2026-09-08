@@ -235,16 +235,44 @@ def render_simulation_tab() -> None:
 # ────────────────────────────────────────────────────────────────────────────
 # TAB 3 — Entrenamiento
 # ────────────────────────────────────────────────────────────────────────────
+import datetime
+
 def render_training_tab() -> None:
     dataset = st.session_state.dataset
     if not isinstance(dataset, pd.DataFrame):
         st.warning("⚠️  Primero genera o carga un dataset válido para habilitar el entrenamiento.")
         return
 
-    st.markdown("### 🧠 Entrenamiento y Evaluación de 5 Algoritmos (Tradicionales y Híbridos)")
-    st.info("Implementación CRISP-DM: Cross-Validation, y optimización sobre múltiples arquitecturas.")
+    # Add custom style for the big red button and dark theme aesthetics
+    st.markdown(
+        """
+        <style>
+        div.stButton > button:first-child {
+            background-color: #ff4b4b;
+            color: white;
+            border: none;
+            padding: 0.75rem 1rem;
+        }
+        div.stButton > button:first-child:hover {
+            background-color: #ff3333;
+            color: white;
+            border: none;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    st.markdown(
+        """
+        - División temporal: ajuste con `Time Series Split` (K-Folds adaptado al dataset).
+        - Modelos tabulares: ajuste con MultiOutputRegressor.
+        - Modelos secuenciales: holdout temporal con validacion separada (Redes Neuronales).
+        - Objetivo de seleccion: mejor `R2`, luego `MAE` y `RMSE`.
+        """
+    )
     
-    if st.button("▶ Iniciar Entrenamiento Comparativo", type="primary", use_container_width=True):
+    if st.button("Entrenar y comparar modelos", use_container_width=True):
         progress_bar = st.progress(0)
         status_text = st.empty()
         
@@ -254,27 +282,127 @@ def render_training_tab() -> None:
                 progress_bar=progress_bar,
                 status_text=status_text
             )
-            status_text.success("✅  Entrenamiento comparativo completado.")
+            progress_bar.empty()
+            status_text.empty()
             
     training_result = st.session_state.training_result
     if training_result:
         results_df = training_result["results_df"]
         best_overall = training_result["best_overall"]
         
-        with st.container(border=True):
-            st.markdown("#### 🏆 Resultados del Cross-Validation")
-            st.dataframe(results_df.style.highlight_min(subset=["CV_MAE_Mean"], color="lightgreen"), use_container_width=True, hide_index=True)
-            st.success(f"El mejor modelo general es: **{best_overall}**")
-            
-            fig = px.bar(results_df, x="Modelo", y="CV_MAE_Mean", error_y="CV_MAE_Std", title="Comparativa MAE (Menor es mejor)")
-            st.plotly_chart(fig, use_container_width=True)
-
+        st.success(f"Entrenamiento completado. Mejor modelo: {best_overall}")
+        
+        # 1. Registro de modelos
+        st.markdown("### Registro de modelos")
+        registro_df = pd.DataFrame()
+        registro_df["nombre"] = results_df["Modelo"]
+        registro_df["version"] = "1.0.0"
+        registro_df["r2_score"] = results_df["CV_R2_Mean"].round(4)
+        registro_df["mae"] = results_df["CV_MAE_Mean"].round(4)
+        registro_df["rmse"] = results_df["CV_RMSE_Mean"].round(4)
+        registro_df["mape"] = results_df["CV_MAPE_Mean"].round(4)
+        registro_df["expl_var"] = results_df["CV_ExplVar_Mean"].round(4)
+        registro_df["activo"] = registro_df["nombre"] == best_overall
+        registro_df["fecha_entrenamiento"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        st.dataframe(
+            registro_df,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "activo": st.column_config.CheckboxColumn("activo")
+            }
+        )
+        
+        # 2. Tabla comparativa
+        st.markdown("### Tabla comparativa")
+        comparativa_df = pd.DataFrame()
+        comparativa_df["Modelo"] = results_df["Modelo"]
+        comparativa_df["R2 Score"] = results_df["CV_R2_Mean"].round(4)
+        comparativa_df["Expl Variance"] = results_df["CV_ExplVar_Mean"].round(4)
+        comparativa_df["MAE"] = results_df["CV_MAE_Mean"].round(4)
+        comparativa_df["RMSE"] = results_df["CV_RMSE_Mean"].round(4)
+        comparativa_df["MAPE"] = results_df["CV_MAPE_Mean"].round(4)
+        comparativa_df["MaxError"] = results_df["CV_MaxError_Mean"].round(4)
+        comparativa_df["MedAE"] = results_df["CV_MedAE_Mean"].round(4)
+        comparativa_df["Train Seconds"] = results_df["Train_Time_Mean"].round(4)
+        comparativa_df["Infer Seconds"] = results_df["Infer_Time_Mean"].round(4)
+        
+        st.dataframe(comparativa_df, use_container_width=True, hide_index=True)
+        
+        # 3. Comparacion de metricas clave
+        st.markdown("### Comparacion de metricas clave")
+        # Displaying R2 Score and Explained Variance as they are typically bounded 0-1
+        plot_df = results_df[["Modelo", "CV_R2_Mean", "CV_ExplVar_Mean"]].copy()
+        plot_df.rename(columns={"CV_R2_Mean": "R2 Score", "CV_ExplVar_Mean": "Expl Variance"}, inplace=True)
+        plot_df = plot_df.melt(id_vars="Modelo", var_name="metrica", value_name="valor")
+        
+        fig_metrics = px.bar(
+            plot_df, 
+            x="Modelo", 
+            y="valor", 
+            color="metrica", 
+            barmode="group",
+            color_discrete_sequence=["#73b0ff", "#ffbaba"]
+        )
+        fig_metrics.update_layout(template="plotly_dark", margin=dict(l=0, r=0, t=30, b=0), yaxis_title="")
+        st.plotly_chart(fig_metrics, use_container_width=True)
+        
+        # 4. Modelo a inspeccionar
+        st.markdown("### Modelo a inspeccionar")
+        selected_model = st.selectbox("Seleccionar modelo:", options=results_df["Modelo"].tolist(), label_visibility="collapsed")
+        
+        sel_row = results_df[results_df["Modelo"] == selected_model].iloc[0]
+        
+        # Big metric numbers
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("R2 Score", f"{sel_row['CV_R2_Mean']:.4f}")
+        m2.metric("MAE", f"{sel_row['CV_MAE_Mean']:.4f}")
+        m3.metric("RMSE", f"{sel_row['CV_RMSE_Mean']:.4f}")
+        m4.metric("MAPE", f"{sel_row['CV_MAPE_Mean']:.4f}")
+        
+        st.markdown("<br>", unsafe_allow_html=True)
+        c_chart1, c_chart2 = st.columns(2)
+        
+        last_y_true = sel_row["last_y_true"]
+        last_y_pred = sel_row["last_y_pred"]
+        
+        if last_y_true is not None and last_y_pred is not None:
+            with c_chart1:
+                st.markdown("**Valores Predichos vs Reales (Primer Objetivo)**")
+                fig_scatter = go.Figure()
+                fig_scatter.add_scatter(
+                    x=last_y_true[:, 0], 
+                    y=last_y_pred[:, 0], 
+                    mode="markers", 
+                    marker=dict(color="#73b0ff", opacity=0.7)
+                )
+                min_val = min(last_y_true[:, 0].min(), last_y_pred[:, 0].min())
+                max_val = max(last_y_true[:, 0].max(), last_y_pred[:, 0].max())
+                fig_scatter.add_shape(type="line", x0=min_val, y0=min_val, x1=max_val, y1=max_val, line=dict(color="white", dash="dash"))
+                fig_scatter.update_layout(template="plotly_dark", height=280, margin=dict(l=0, r=0, t=10, b=0), xaxis_title="Valores Reales", yaxis_title="Valores Predichos")
+                st.plotly_chart(fig_scatter, use_container_width=True)
+                
+            with c_chart2:
+                st.markdown("**Distribución de Residuos (Primer Objetivo)**")
+                fig_res = go.Figure()
+                residuals = last_y_true[:, 0] - last_y_pred[:, 0]
+                fig_res.add_scatter(
+                    x=last_y_pred[:, 0], 
+                    y=residuals, 
+                    mode="markers", 
+                    marker=dict(color="#ffbaba", opacity=0.7)
+                )
+                fig_res.add_shape(type="line", x0=last_y_pred[:, 0].min(), y0=0, x1=last_y_pred[:, 0].max(), y1=0, line=dict(color="white", dash="dash"))
+                fig_res.update_layout(template="plotly_dark", height=280, margin=dict(l=0, r=0, t=10, b=0), xaxis_title="Valores Predichos", yaxis_title="Error Residual")
+                st.plotly_chart(fig_res, use_container_width=True)
 
 
 # ────────────────────────────────────────────────────────────────────────────
 # TAB 4 — Exportación
 # ────────────────────────────────────────────────────────────────────────────
 def render_export_tab() -> None:
+    dataset = st.session_state.dataset
     training_result = st.session_state.training_result
     if not training_result:
         st.info("ℹ️  Completa el entrenamiento para exportar `modelo_optimizado.h5` al volumen compartido y generar reportes.")
@@ -284,20 +412,51 @@ def render_export_tab() -> None:
     best_overall = training_result["best_overall"]
     best_keras_model = training_result["best_keras_model"]
     target_scaler = training_result["target_scaler"]
+    dataset_summary = training_result["dataset_summary"]
+
+    # Recrear tablas de la UI para los reportes
+    registro_df = pd.DataFrame()
+    registro_df["nombre"] = results_df["Modelo"]
+    registro_df["version"] = "1.0.0"
+    registro_df["r2_score"] = results_df["CV_R2_Mean"].round(4)
+    registro_df["mae"] = results_df["CV_MAE_Mean"].round(4)
+    registro_df["rmse"] = results_df["CV_RMSE_Mean"].round(4)
+    registro_df["mape"] = results_df["CV_MAPE_Mean"].round(4)
+    registro_df["expl_var"] = results_df["CV_ExplVar_Mean"].round(4)
+    registro_df["activo"] = (registro_df["nombre"] == best_overall).map({True: "Sí", False: "No"})
+    registro_df["fecha_entrenamiento"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    comparativa_df = pd.DataFrame()
+    comparativa_df["Modelo"] = results_df["Modelo"]
+    comparativa_df["R2 Score"] = results_df["CV_R2_Mean"].round(4)
+    comparativa_df["Expl Variance"] = results_df["CV_ExplVar_Mean"].round(4)
+    comparativa_df["MAE"] = results_df["CV_MAE_Mean"].round(4)
+    comparativa_df["RMSE"] = results_df["CV_RMSE_Mean"].round(4)
+    comparativa_df["MAPE"] = results_df["CV_MAPE_Mean"].round(4)
+    comparativa_df["MaxError"] = results_df["CV_MaxError_Mean"].round(4)
+    comparativa_df["MedAE"] = results_df["CV_MedAE_Mean"].round(4)
+    comparativa_df["Train Seconds"] = results_df["Train_Time_Mean"].round(4)
+    comparativa_df["Infer Seconds"] = results_df["Infer_Time_Mean"].round(4)
+
+    dataset_info_df = pd.DataFrame([
+        {"Propiedad": "Cantidad de Datos Entrenados (Filas)", "Detalle": str(len(dataset))},
+        {"Propiedad": "Campos de Entrada (Features)", "Detalle": ", ".join(dataset.columns.intersection(FEATURE_COLUMNS))},
+        {"Propiedad": "Campos Objetivo (Targets)", "Detalle": ", ".join(dataset.columns.intersection(TARGET_COLUMNS))}
+    ])
 
     col1, col2 = st.columns([1, 1], gap="large")
     with col1:
         with st.container(border=True):
             st.markdown("#### 📄 Generar Reportes")
-            st.write("Descarga los resultados de la validación cruzada.")
+            st.write("Descarga los resultados de la validación cruzada y los datos entrenados.")
             
-            excel_bytes = generate_excel_report(results_df, best_overall)
+            excel_bytes = generate_excel_report(registro_df, comparativa_df, dataset_info_df, dataset, best_overall)
             st.download_button("Descargar Excel", data=excel_bytes, file_name="reporte_modelos.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
             
-            word_bytes = generate_word_report(results_df, best_overall)
+            word_bytes = generate_word_report(registro_df, comparativa_df, dataset_info_df, best_overall)
             st.download_button("Descargar Word", data=word_bytes, file_name="reporte_modelos.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", use_container_width=True)
             
-            pdf_bytes = generate_pdf_report(results_df, best_overall)
+            pdf_bytes = generate_pdf_report(registro_df, comparativa_df, dataset_info_df, best_overall)
             st.download_button("Descargar PDF", data=pdf_bytes, file_name="reporte_modelos.pdf", mime="application/pdf", use_container_width=True)
 
     with col2:
