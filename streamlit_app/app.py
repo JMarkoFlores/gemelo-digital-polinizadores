@@ -10,6 +10,8 @@ import streamlit as st
 from data_pipeline import FEATURE_COLUMNS, TARGET_COLUMNS, generate_synthetic_dataset, summarize_dataset
 from pollinator_abm import ABMScenario, run_example_simulation
 from training import export_model_bundle, train_surrogate_model
+from advanced_training import train_and_evaluate_all_models
+from reports import generate_excel_report, generate_word_report, generate_pdf_report
 
 MODEL_DIR = Path("/modelos_ia")
 
@@ -239,49 +241,34 @@ def render_training_tab() -> None:
         st.warning("⚠️  Primero genera o carga un dataset válido para habilitar el entrenamiento.")
         return
 
-    left, right = st.columns([1, 1], gap="large")
-    with left:
+    st.markdown("### 🧠 Entrenamiento y Evaluación de 5 Algoritmos (Tradicionales y Híbridos)")
+    st.info("Implementación CRISP-DM: Cross-Validation, y optimización sobre múltiples arquitecturas.")
+    
+    if st.button("▶ Iniciar Entrenamiento Comparativo", type="primary", use_container_width=True):
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        
+        with st.spinner("Entrenando modelos... esto puede tardar un momento"):
+            st.session_state.training_result = train_and_evaluate_all_models(
+                dataframe=dataset,
+                progress_bar=progress_bar,
+                status_text=status_text
+            )
+            status_text.success("✅  Entrenamiento comparativo completado.")
+            
+    training_result = st.session_state.training_result
+    if training_result:
+        results_df = training_result["results_df"]
+        best_overall = training_result["best_overall"]
+        
         with st.container(border=True):
-            st.markdown("#### ⚙️ Hiperparámetros")
-            epochs       = st.slider("Épocas", 10, 120, 35, 5)
-            batch_size   = st.select_slider("Batch size", options=[8, 16, 24, 32, 48, 64], value=24)
-            random_state = st.number_input("Semilla de entrenamiento", min_value=1, max_value=9999, value=42)
-            st.markdown("---")
-            st.markdown("**Entradas detectadas:**")
-            st.code(", ".join(FEATURE_COLUMNS), language=None)
-            st.markdown("**Objetivos detectados:**")
-            st.code(", ".join(TARGET_COLUMNS), language=None)
-            train_button = st.button("▶ Iniciar entrenamiento", type="primary", use_container_width=True)
+            st.markdown("#### 🏆 Resultados del Cross-Validation")
+            st.dataframe(results_df.style.highlight_min(subset=["CV_MAE_Mean"], color="lightgreen"), use_container_width=True, hide_index=True)
+            st.success(f"El mejor modelo general es: **{best_overall}**")
+            
+            fig = px.bar(results_df, x="Modelo", y="CV_MAE_Mean", error_y="CV_MAE_Std", title="Comparativa MAE (Menor es mejor)")
+            st.plotly_chart(fig, use_container_width=True)
 
-    with right:
-        progress_bar       = st.progress(0)
-        status_placeholder = st.empty()
-        chart_placeholder  = st.empty()
-
-        if train_button:
-            with st.spinner("Entrenando la red neuronal surrogate..."):
-                st.session_state.training_result = train_surrogate_model(
-                    dataframe=dataset,
-                    progress_bar=progress_bar,
-                    status_placeholder=status_placeholder,
-                    chart_placeholder=chart_placeholder,
-                    epochs=epochs,
-                    batch_size=batch_size,
-                    random_state=int(random_state),
-                )
-                status_placeholder.success("✅  Entrenamiento completado.")
-
-        training_result = st.session_state.training_result
-        if training_result:
-            metrics = training_result["metrics"]
-            metric_rows = [
-                {"target": target, "MAE": round(v["mae"], 4), "RMSE": round(v["rmse"], 4), "R²": round(v["r2"], 4)}
-                for target, v in metrics.items()
-            ]
-            with st.container(border=True):
-                st.markdown("#### 📋 Métricas de evaluación")
-                st.dataframe(pd.DataFrame(metric_rows), use_container_width=True, hide_index=True)
-                st.caption(f"Tiempo total: {training_result['duration_seconds']:.2f} segundos")
 
 
 # ────────────────────────────────────────────────────────────────────────────
@@ -290,38 +277,51 @@ def render_training_tab() -> None:
 def render_export_tab() -> None:
     training_result = st.session_state.training_result
     if not training_result:
-        st.info("ℹ️  Completa el entrenamiento para exportar `modelo_optimizado.h5` al volumen compartido.")
+        st.info("ℹ️  Completa el entrenamiento para exportar `modelo_optimizado.h5` al volumen compartido y generar reportes.")
         return
+
+    results_df = training_result["results_df"]
+    best_overall = training_result["best_overall"]
+    best_keras_model = training_result["best_keras_model"]
+    target_scaler = training_result["target_scaler"]
 
     col1, col2 = st.columns([1, 1], gap="large")
     with col1:
         with st.container(border=True):
-            st.markdown("#### 💾 Destino del modelo")
-            st.code(str(MODEL_DIR / "modelo_optimizado.h5"), language=None)
-            if st.button("📤 Exportar modelo entrenado", use_container_width=True, type="primary"):
-                st.session_state.export_result = export_model_bundle(
-                    training_result["model"],
-                    MODEL_DIR,
-                    training_result["metrics"],
-                    training_result["target_scaler_mean"],
-                    training_result["target_scaler_scale"],
-                )
+            st.markdown("#### 📄 Generar Reportes")
+            st.write("Descarga los resultados de la validación cruzada.")
+            
+            excel_bytes = generate_excel_report(results_df, best_overall)
+            st.download_button("Descargar Excel", data=excel_bytes, file_name="reporte_modelos.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
+            
+            word_bytes = generate_word_report(results_df, best_overall)
+            st.download_button("Descargar Word", data=word_bytes, file_name="reporte_modelos.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", use_container_width=True)
+            
+            pdf_bytes = generate_pdf_report(results_df, best_overall)
+            st.download_button("Descargar PDF", data=pdf_bytes, file_name="reporte_modelos.pdf", mime="application/pdf", use_container_width=True)
 
     with col2:
+        with st.container(border=True):
+            st.markdown("#### 💾 Destino del modelo")
+            st.code(str(MODEL_DIR / "modelo_optimizado.h5"), language=None)
+            st.caption("Nota: El backend React requiere un archivo H5, por lo que se exportará la mejor Red Neuronal/Híbrida encontrada.")
+            if st.button("📤 Exportar modelo entrenado", use_container_width=True, type="primary"):
+                # Mocking a metrics dict for compatibility with existing export
+                metrics = {"general": {"mae": results_df.iloc[0]["CV_MAE_Mean"], "rmse": 0, "r2": 0}}
+                st.session_state.export_result = export_model_bundle(
+                    best_keras_model,
+                    MODEL_DIR,
+                    metrics,
+                    target_scaler.mean_.tolist(),
+                    target_scaler.scale_.tolist(),
+                )
+
         export_result = st.session_state.export_result
         if export_result:
-            st.success("✅  Modelo exportado correctamente.")
+            st.success("✅  Modelo Keras exportado correctamente.")
             with st.container(border=True):
                 st.json(export_result)
-        else:
-            existing_model = MODEL_DIR / "modelo_optimizado.h5"
-            if existing_model.exists():
-                with st.container(border=True):
-                    st.info(f"Ya existe un modelo en el volumen: `{existing_model}`")
-            else:
-                with st.container(border=True):
-                    st.markdown("#### ⏳ Sin exportaciones aún")
-                    st.write("El modelo exportado aparecerá aquí una vez que completes la exportación.")
+
 
 
 # ────────────────────────────────────────────────────────────────────────────
