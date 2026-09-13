@@ -570,7 +570,7 @@ def render_export_tab() -> None:
 
         export_result = st.session_state.export_result
         if export_result:
-            st.success("✅  Modelo Keras exportado correctamente.")
+            st.success("✅  Modelo exportado correctamente.")
             with st.container(border=True):
                 st.json(export_result)
 
