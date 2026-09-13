@@ -81,56 +81,99 @@ export default function ClientOptimizePage() {
   }
 
   return (
-    <div className="space-y-6">
-      <section>
-        <p className="text-sm uppercase tracking-[0.3em] text-primary-600">{t('clientOpt_badge')}</p>
-        <h1 className="mt-3 text-4xl font-semibold">{t('clientOpt_title')}</h1>
-        <p className="mt-2 max-w-3xl text-slate-600 dark:text-slate-300">
-          {t('clientOpt_desc')}
-        </p>
+    <div className="space-y-6 sm:space-y-8">
+      {/* Header section with badge */}
+      <section className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              {t('clientOpt_badge')}
+            </span>
+            <span className="text-xs text-slate-400">Simulación Espacial Multiobjetivo</span>
+          </div>
+          <h1 className="mt-2 text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100 font-display">
+            {t('clientOpt_title')}
+          </h1>
+          <p className="mt-1.5 max-w-3xl text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+            {t('clientOpt_desc')}
+          </p>
+        </div>
+
+        {result ? (
+          <button
+            id="export-pdf-top-btn"
+            onClick={async () => {
+              const { exportSimulationToPdf } = await import('../lib/exporters')
+              exportSimulationToPdf({ ...result, id: 'resultado' })
+            }}
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs sm:text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800 shrink-0"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-rose-500">
+              <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
+              <polyline points="14 2 14 8 20 8"/>
+            </svg>
+            <span>{t('clientOpt_exportPdf')}</span>
+          </button>
+        ) : null}
       </section>
+
       {/* Model status banner */}
       {modelReady === null && (
         <StatusBanner tone="info">Verificando estado del modelo IA…</StatusBanner>
       )}
       {modelReady === false && (
-        <StatusBanner tone="error">
-          ⚠️ Modelo IA no disponible — {modelStatus}. Ve a{' '}
-          <a href="http://localhost:8501" target="_blank" rel="noreferrer" className="underline font-semibold">
-            Streamlit (localhost:8501)
-          </a>{' '}
-          → pestaña <strong>Datos y pipeline</strong> → <strong>Entrenamiento</strong> → <strong>Exportación</strong> para generar el modelo.
-          <button 
-            onClick={handleManualReload} 
-            disabled={reloading}
-            className="ml-4 underline font-bold disabled:opacity-50"
-          >
-            {reloading ? '⏳ Recargando...' : '🔄 Forzar recarga de modelo'}
-          </button>
+        <StatusBanner tone="warning">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <strong>⚠️ Modelo IA no cargado:</strong> {modelStatus || 'Verifica el pipeline de exportación.'}
+            </div>
+            <div className="flex flex-wrap items-center gap-2 mt-2 sm:mt-0">
+              <a
+                href={`http://${window.location.hostname}:8501`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-blue-500/20 px-3 py-1 text-xs font-bold text-blue-900 hover:bg-blue-500/30 transition dark:text-blue-200 shrink-0"
+                title="Abrir Streamlit en una nueva pestaña para entrenar el modelo"
+              >
+                🚀 Entrenar en Streamlit
+              </a>
+              <button
+                onClick={handleManualReload}
+                disabled={reloading}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500/20 px-3 py-1 text-xs font-bold text-amber-900 hover:bg-amber-500/30 transition disabled:opacity-50 dark:text-amber-200 shrink-0"
+              >
+                {reloading ? '⏳ Recargando...' : '🔄 Forzar recarga'}
+              </button>
+            </div>
+          </div>
         </StatusBanner>
       )}
       {modelReady === true && (
-        <StatusBanner tone="success">✅ Modelo IA listo — {modelStatus}</StatusBanner>
+        <StatusBanner tone="success">
+          <div className="flex items-center justify-between">
+            <span><strong>Modelo IA operativo:</strong> {modelStatus || 'Modelo subrogado listo para inferencia instantánea.'}</span>
+          </div>
+        </StatusBanner>
       )}
 
       {error ? <StatusBanner tone="error">{error}</StatusBanner> : null}
-      {result ? (
-        <div className="flex justify-end">
-          <button
-            onClick={async () => {
-              const { exportSimulationToPdf } = await import('../lib/exporters')
-              exportSimulationToPdf({ ...result, id: 'resultado' })
-            }}
-            className="rounded-2xl bg-slate-200 px-4 py-2 text-sm dark:bg-slate-800"
-          >
-            {t('clientOpt_exportPdf')}
-          </button>
-        </div>
-      ) : null}
+
+      {/* Step 1: Map Selection */}
       <Suspense fallback={<SpinnerBlock label={t('clientOpt_loadingMap')} />}>
         <MapSelectionCard geometry={geometry} onGeometryChange={setGeometry} baseline={result?.baseline} />
       </Suspense>
-      <ScenarioPanel values={scenario} onChange={(key, value) => setScenario((prev) => ({ ...prev, [key]: value }))} onRun={runSimulation} disabled={!geometry || !modelReady} loading={loading} />
+
+      {/* Step 2: Scenario Parameters */}
+      <ScenarioPanel
+        values={scenario}
+        onChange={(key, value) => setScenario((prev) => ({ ...prev, [key]: value }))}
+        onRun={runSimulation}
+        disabled={!geometry || !modelReady}
+        loading={loading}
+      />
+
+      {/* Step 3: Optimization Results */}
       <Suspense fallback={<SpinnerBlock label={t('clientOpt_loadingViz')} />}>
         <ResultsDashboard result={result} />
       </Suspense>

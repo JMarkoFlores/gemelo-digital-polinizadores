@@ -3,15 +3,18 @@ from __future__ import annotations
 from pathlib import Path
 
 import pandas as pd
+import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
+from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
 
 from data_pipeline import FEATURE_COLUMNS, TARGET_COLUMNS, generate_synthetic_dataset, summarize_dataset
 from pollinator_abm import ABMScenario, run_example_simulation
 from training import export_model_bundle, train_surrogate_model
 from advanced_training import train_and_evaluate_all_models
 from reports import generate_excel_report, generate_word_report, generate_pdf_report
+from robust_tests import render_robust_tests_tab
 
 MODEL_DIR = Path("/modelos_ia")
 
@@ -265,22 +268,25 @@ def render_training_tab() -> None:
 
     st.markdown(
         """
-        - División temporal: ajuste con `Time Series Split` (K-Folds adaptado al dataset).
+        - División de datos: validación cruzada (`K-Fold CV` barajado y adaptado al dataset).
         - Modelos tabulares: ajuste con MultiOutputRegressor.
-        - Modelos secuenciales: holdout temporal con validacion separada (Redes Neuronales).
+        - Modelos secuenciales: ajuste multi-fold y ensamblaje de resultados (Redes Neuronales).
         - Objetivo de seleccion: mejor `R2`, luego `MAE` y `RMSE`.
         """
     )
+    
+    k_folds = st.slider("Número de Folds (K-Fold CV)", min_value=3, max_value=10, value=5, help="Define el número de particiones para la validación cruzada.")
     
     if st.button("Entrenar y comparar modelos", use_container_width=True):
         progress_bar = st.progress(0)
         status_text = st.empty()
         
-        with st.spinner("Entrenando modelos... esto puede tardar un momento"):
+        with st.spinner(f"Entrenando modelos con {k_folds} folds... esto puede tardar un momento"):
             st.session_state.training_result = train_and_evaluate_all_models(
                 dataframe=dataset,
                 progress_bar=progress_bar,
-                status_text=status_text
+                status_text=status_text,
+                k_folds=k_folds
             )
             progress_bar.empty()
             status_text.empty()
@@ -397,6 +403,84 @@ def render_training_tab() -> None:
                 fig_res.update_layout(template="plotly_dark", height=280, margin=dict(l=0, r=0, t=10, b=0), xaxis_title="Valores Predichos", yaxis_title="Error Residual")
                 st.plotly_chart(fig_res, use_container_width=True)
 
+        # Bootstrap CI & Feature Importance
+        st.markdown("<br>### Análisis de Fiabilidad e Importancia (Modelo Ganador)", unsafe_allow_html=True)
+        if selected_model == best_overall:
+            with st.spinner("Calculando intervalos de confianza (Bootstrap) e importancia de variables..."):
+                # Bootstrap
+                n_bootstraps = 500
+                boot_r2 = []
+                boot_mae = []
+                boot_rmse = []
+                n_samples = len(last_y_true)
+                for _ in range(n_bootstraps):
+                    idx = np.random.choice(np.arange(n_samples), size=n_samples, replace=True)
+                    y_t_boot = last_y_true[idx]
+                    y_p_boot = last_y_pred[idx]
+                    
+                    r2_vals = [r2_score(y_t_boot[:, i], y_p_boot[:, i]) for i in range(y_t_boot.shape[1])]
+                    mae_vals = [mean_absolute_error(y_t_boot[:, i], y_p_boot[:, i]) for i in range(y_t_boot.shape[1])]
+                    rmse_vals = [np.sqrt(mean_squared_error(y_t_boot[:, i], y_p_boot[:, i])) for i in range(y_t_boot.shape[1])]
+                    
+                    boot_r2.append(np.mean(r2_vals))
+                    boot_mae.append(np.mean(mae_vals))
+                    boot_rmse.append(np.mean(rmse_vals))
+                
+                ci_r2 = np.percentile(boot_r2, [2.5, 97.5])
+                ci_mae = np.percentile(boot_mae, [2.5, 97.5])
+                ci_rmse = np.percentile(boot_rmse, [2.5, 97.5])
+                
+                c_ci1, c_ci2, c_ci3 = st.columns(3)
+                with c_ci1:
+                    st.info(f"**R² (IC 95%)**\n\n[{ci_r2[0]:.3f}, {ci_r2[1]:.3f}]")
+                with c_ci2:
+                    st.info(f"**MAE (IC 95%)**\n\n[{ci_mae[0]:.3f}, {ci_mae[1]:.3f}]")
+                with c_ci3:
+                    st.info(f"**RMSE (IC 95%)**\n\n[{ci_rmse[0]:.3f}, {ci_rmse[1]:.3f}]")
+                
+                # Permutation Feature Importance
+                st.markdown("**Importancia de Variables (Estimación basada en Permutation MAE sobre todo el dataset)**")
+                model_obj = sel_row.get("last_model")
+                
+                importances = []
+                if model_obj is not None:
+                    try:
+                        X_full = st.session_state.dataset[FEATURE_COLUMNS].to_numpy(dtype=np.float32)
+                        y_full = st.session_state.dataset[TARGET_COLUMNS].to_numpy(dtype=np.float32)
+                        
+                        if "dnn" in selected_model.lower() or "autoencoder" in selected_model.lower():
+                            p_base_scaled = model_obj.predict(X_full, verbose=0)
+                        else:
+                            p_base_scaled = model_obj.predict(X_full)
+                        p_base = training_result["target_scaler"].inverse_transform(p_base_scaled)
+                        base_mae = mean_absolute_error(y_full[:, 0], p_base[:, 0])
+                        
+                        for i, feat in enumerate(FEATURE_COLUMNS):
+                            X_perm = X_full.copy()
+                            np.random.shuffle(X_perm[:, i])
+                            if "dnn" in selected_model.lower() or "autoencoder" in selected_model.lower():
+                                p_scaled = model_obj.predict(X_perm, verbose=0)
+                            else:
+                                p_scaled = model_obj.predict(X_perm)
+                            p_perm = training_result["target_scaler"].inverse_transform(p_scaled)
+                            
+                            perm_mae = mean_absolute_error(y_full[:, 0], p_perm[:, 0])
+                            importances.append(max(0, perm_mae - base_mae))
+                            
+                        # Normalize
+                        sum_imp = sum(importances) + 1e-9
+                        importances = [imp / sum_imp for imp in importances]
+                        
+                        df_imp = pd.DataFrame({"Variable": FEATURE_COLUMNS, "Importancia": importances}).sort_values("Importancia", ascending=True)
+                        fig_imp = px.bar(df_imp, x="Importancia", y="Variable", orientation='h', title="Feature Importance (Permutation MAE)")
+                        fig_imp.update_layout(template="plotly_dark", height=300, margin=dict(l=0, r=0, t=30, b=0))
+                        st.plotly_chart(fig_imp, use_container_width=True)
+                    except Exception as e:
+                        st.warning(f"No se pudo calcular la importancia de variables: {str(e)}")
+        else:
+            st.info("ℹ️ Selecciona el modelo ganador para visualizar sus intervalos de confianza e importancia de variables.")
+
+
 
 # ────────────────────────────────────────────────────────────────────────────
 # TAB 4 — Exportación
@@ -450,13 +534,22 @@ def render_export_tab() -> None:
             st.markdown("#### 📄 Generar Reportes")
             st.write("Descarga los resultados de la validación cruzada y los datos entrenados.")
             
-            excel_bytes = generate_excel_report(registro_df, comparativa_df, dataset_info_df, dataset, best_overall)
+            interpretations = {
+                "b1": st.session_state.get("interpretacion_b1"),
+                "nota_metodologica_b1": st.session_state.get("nota_metodologica_b1"),
+                "friedman": st.session_state.get("interpretacion_friedman"),
+                "veredicto": st.session_state.get("veredicto_final"),
+                "nemenyi_text": st.session_state.get("nemenyi_results", {}).get("text") if st.session_state.get("nemenyi_results") else None,
+                "nemenyi_matrix": st.session_state.get("nemenyi_results", {}).get("matrix") if st.session_state.get("nemenyi_results") else None
+            }
+            
+            excel_bytes = generate_excel_report(registro_df, comparativa_df, dataset_info_df, dataset, best_overall, interpretations)
             st.download_button("Descargar Excel", data=excel_bytes, file_name="reporte_modelos.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
             
-            word_bytes = generate_word_report(registro_df, comparativa_df, dataset_info_df, best_overall)
+            word_bytes = generate_word_report(registro_df, comparativa_df, dataset_info_df, best_overall, interpretations)
             st.download_button("Descargar Word", data=word_bytes, file_name="reporte_modelos.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", use_container_width=True)
             
-            pdf_bytes = generate_pdf_report(registro_df, comparativa_df, dataset_info_df, best_overall)
+            pdf_bytes = generate_pdf_report(registro_df, comparativa_df, dataset_info_df, best_overall, interpretations)
             st.download_button("Descargar PDF", data=pdf_bytes, file_name="reporte_modelos.pdf", mime="application/pdf", use_container_width=True)
 
     with col2:
@@ -487,8 +580,8 @@ def render_export_tab() -> None:
 def main() -> None:
     initialize_state()
     render_header()
-    tab1, tab2, tab3, tab4 = st.tabs(
-        ["📂 Datos y pipeline", "🐝 Simulador ABM", "🧠 Entrenamiento", "💾 Exportación"]
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(
+        ["📂 Datos y pipeline", "🐝 Simulador ABM", "🧠 Entrenamiento", "💾 Exportación", "📊 Pruebas Robustas"]
     )
     with tab1:
         render_dataset_tab()
@@ -498,6 +591,8 @@ def main() -> None:
         render_training_tab()
     with tab4:
         render_export_tab()
+    with tab5:
+        render_robust_tests_tab()
 
 
 if __name__ == "__main__":

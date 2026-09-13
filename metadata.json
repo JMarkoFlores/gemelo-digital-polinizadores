@@ -1,0 +1,6 @@
+{
+  "name": "Gemelos Digitales - Polinizadores",
+  "description": "Plataforma de simulación y optimización basada en gemelos digitales para polinizadores agrícolas y biodiversidad",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

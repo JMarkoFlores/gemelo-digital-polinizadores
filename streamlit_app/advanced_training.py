@@ -46,7 +46,7 @@ def evaluate_preds(y_true, y_pred):
         }
     return metrics
 
-def train_and_evaluate_all_models(dataframe: pd.DataFrame, progress_bar, status_text, random_state=42):
+def train_and_evaluate_all_models(dataframe: pd.DataFrame, progress_bar, status_text, random_state=42, k_folds=5):
     X = dataframe[FEATURE_COLUMNS].to_numpy(dtype=np.float32)
     y = dataframe[TARGET_COLUMNS].to_numpy(dtype=np.float32)
     
@@ -61,15 +61,16 @@ def train_and_evaluate_all_models(dataframe: pd.DataFrame, progress_bar, status_
         "Autoencoder+MLP (Híbrido)": "autoencoder"
     }
     
-    kf = KFold(n_splits=3, shuffle=True, random_state=random_state)
+    from sklearn.model_selection import KFold
+    kf = KFold(n_splits=k_folds, shuffle=True, random_state=random_state)
     
     results = []
     
-    total_steps = len(models_config) * 3
+    total_steps = len(models_config) * k_folds
     current_step = 0
     
     best_keras_model = None
-    best_keras_mae = float('inf')
+    best_keras_r2 = -float('inf')
     
     for model_name, model_def in models_config.items():
         status_text.text(f"Evaluando: {model_name} (Cross-Validation 3-Folds)...")
@@ -85,7 +86,9 @@ def train_and_evaluate_all_models(dataframe: pd.DataFrame, progress_bar, status_
         fold_infer_times = []
         
         last_y_true = None
-        last_y_pred = None
+        last_X_val = None
+        oof_y_true = np.zeros_like(y)
+        oof_y_pred = np.zeros_like(y)
         
         for fold, (train_idx, val_idx) in enumerate(kf.split(X)):
             X_train, X_val = X[train_idx], X[val_idx]
@@ -113,9 +116,9 @@ def train_and_evaluate_all_models(dataframe: pd.DataFrame, progress_bar, status_
                 preds = scaler.inverse_transform(preds_scaled)
                 
                 # Check if this should be the exported model
-                val_mae = np.mean(np.abs(preds - y_val_orig))
-                if val_mae < best_keras_mae:
-                    best_keras_mae = val_mae
+                val_r2 = np.mean([r2_score(y_val_orig[:, i], preds[:, i]) for i in range(y_val_orig.shape[1])])
+                if val_r2 > best_keras_r2:
+                    best_keras_r2 = val_r2
                     best_keras_model = model
             else:
                 # Scikit-Learn / XGBoost
@@ -148,8 +151,10 @@ def train_and_evaluate_all_models(dataframe: pd.DataFrame, progress_bar, status_
             fold_medaes.append(avg_medae)
             fold_evs.append(avg_evs)
             
-            last_y_true = y_val_orig
-            last_y_pred = preds
+            last_X_val = X_val
+            
+            oof_y_true[val_idx] = y_val_orig
+            oof_y_pred[val_idx] = preds
             
             current_step += 1
             progress_bar.progress(current_step / total_steps)
@@ -157,6 +162,7 @@ def train_and_evaluate_all_models(dataframe: pd.DataFrame, progress_bar, status_
         results.append({
             "Modelo": model_name,
             "CV_MAE_Mean": np.mean(fold_maes),
+            "fold_maes": fold_maes,
             "CV_MAE_Std": np.std(fold_maes),
             "CV_RMSE_Mean": np.mean(fold_rmses),
             "CV_RMSE_Std": np.std(fold_rmses),
@@ -168,11 +174,16 @@ def train_and_evaluate_all_models(dataframe: pd.DataFrame, progress_bar, status_
             "CV_ExplVar_Mean": np.mean(fold_evs),
             "Train_Time_Mean": np.mean(fold_train_times),
             "Infer_Time_Mean": np.mean(fold_infer_times),
-            "last_y_true": last_y_true,
-            "last_y_pred": last_y_pred
+            "last_y_true": oof_y_true,
+            "last_y_pred": oof_y_pred,
+            "last_X_val": last_X_val,
+            "last_model": model if isinstance(model_def, str) else model_def
         })
         
-    results_df = pd.DataFrame(results).sort_values("CV_MAE_Mean")
+    results_df = pd.DataFrame(results).sort_values(
+        by=["CV_R2_Mean", "CV_MAE_Mean", "CV_RMSE_Mean"], 
+        ascending=[False, True, True]
+    )
     
     # Generate a statistical summary of the training dataset
     dataset_summary = dataframe.describe().reset_index()
