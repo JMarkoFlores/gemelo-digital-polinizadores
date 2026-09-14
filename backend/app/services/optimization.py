@@ -116,7 +116,7 @@ def build_baseline_features(context: SpatialContext, pesticide_level: float, min
     area_pressure = min(1.0, context.area_km2 / 100.0)
     natural_area_pct = max(min_natural_area_pct, 14.0 + area_pressure * 7.5)
     floral_strips_pct = min(14.0, max(3.0, natural_area_pct * 0.28))
-    crop_area_pct = max(35.0, 86.0 - natural_area_pct - floral_strips_pct)
+    crop_area_pct = max(35.0, 100.0 - natural_area_pct - floral_strips_pct)
     soil_management_score = 52.0 + area_pressure * 18.0
     landscape_diversity = min(0.92, 0.34 + natural_area_pct / 100.0 + floral_strips_pct / 120.0)
 

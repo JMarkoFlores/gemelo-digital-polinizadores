@@ -104,7 +104,8 @@ api.interceptors.response.use(
         return {
           data: {
             model_ready: true,
-            model_status: 'Surrogate activo (Random Forest + PyMoo v1.4)',
+            model_name: 'DNN Surrogate (Híbrido)',
+            model_status: 'DNN Surrogate (Híbrido)',
             version: 'v1.4.0',
           },
           status: 200,
@@ -162,7 +163,7 @@ api.interceptors.response.use(
           delta_pollinators: +(((optPollinators - basePollinators) / basePollinators) * 100).toFixed(1),
           hypothesis_status: 'HIPÓTESIS CONFIRMADA',
           cache_hit: false,
-          model_version: 'v1.4.0 (Surrogate RF-ABM)',
+          model_version: 'v1.4.0 (Surrogate DNN-ABM)',
           baseline: {
             crop_yield_index: baseYield,
             pollinator_abundance_index: basePollinators,

@@ -165,7 +165,14 @@ export default function MapSelectionCard({ geometry, onGeometryChange, baseline 
     setTimeout(() => setCopied(false), 2000)
   }
 
-  const coordinatesCount = geometry?.coordinates?.[0]?.length || 0
+  const coordinatesCount = (() => {
+    const coords = geometry?.coordinates?.[0];
+    if (!coords || coords.length === 0) return 0;
+    const first = coords[0];
+    const last = coords[coords.length - 1];
+    const isClosed = first[0] === last[0] && first[1] === last[1] && coords.length > 2;
+    return isClosed ? coords.length - 1 : coords.length;
+  })();
 
   return (
     <PanelCard

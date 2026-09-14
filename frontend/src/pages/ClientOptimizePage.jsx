@@ -25,12 +25,16 @@ export default function ClientOptimizePage() {
   const [modelReady, setModelReady] = useState(null)   // null = checking, true/false = known
   const [modelStatus, setModelStatus] = useState('')
   const [reloading, setReloading] = useState(false)
+  const [modelName, setModelName] = useState('')
+  const [modelVersion, setModelVersion] = useState('')
 
   const checkModelStatus = () => {
     return api.get('/api/model/status')
       .then((res) => {
         setModelReady(res.data.model_ready)
+        setModelName(res.data.model_name ?? '')
         setModelStatus(res.data.model_status ?? '')
+        setModelVersion(res.data.model_version ?? res.data.version ?? '')
       })
       .catch(() => {
         setModelReady(false)
@@ -152,7 +156,10 @@ export default function ClientOptimizePage() {
       {modelReady === true && (
         <StatusBanner tone="success">
           <div className="flex items-center justify-between">
-            <span><strong>Modelo IA operativo:</strong> {modelStatus || 'Modelo subrogado listo para inferencia instantánea.'}</span>
+            <span>
+              <strong>Modelo IA operativo:</strong> {modelName || modelStatus || 'Modelo subrogado listo para inferencia instantánea.'}
+              {modelVersion && ` (Versión: ${modelVersion})`}
+            </span>
           </div>
         </StatusBanner>
       )}
