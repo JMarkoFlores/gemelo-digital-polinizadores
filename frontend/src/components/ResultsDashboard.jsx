@@ -12,245 +12,12 @@ import {
   Legend,
 } from 'recharts'
 import { useTranslation } from 'react-i18next'
-import { MapContainer, TileLayer, GeoJSON } from 'react-leaflet'
-import 'leaflet/dist/leaflet.css'
 import PanelCard from './PanelCard'
 import MetricCard from './MetricCard'
 import EmptyState from './EmptyState'
-import LandscapeDiorama3D, { generateLandscapeGrid } from './LandscapeDiorama3D'
-import { Polygon } from 'react-leaflet'
+import LandscapeDiorama3D from './LandscapeDiorama3D'
+import ExpandableMapCard from './ExpandableMapCard'
 
-function clipPolygonAgainstRectangle(subjectPoly, rect) {
-  // rect: [minX, minY, maxX, maxY]
-  let outputList = subjectPoly
-
-  // Clip against left edge (x >= minX)
-  outputList = clipAgainstEdge(outputList, rect[0], null, true)
-  // Clip against right edge (x <= maxX)
-  outputList = clipAgainstEdge(outputList, rect[2], null, false)
-  // Clip against bottom edge (y >= minY)
-  outputList = clipAgainstEdge(outputList, null, rect[1], true)
-  // Clip against top edge (y <= maxY)
-  outputList = clipAgainstEdge(outputList, null, rect[3], false)
-
-  return outputList
-}
-
-function clipAgainstEdge(pts, edgeX, edgeY, isGreater) {
-  if (!pts || pts.length === 0) return []
-  const output = []
-  let prev = pts[pts.length - 1]
-
-  for (let i = 0; i < pts.length; i++) {
-    let curr = pts[i]
-    let prevInside = edgeX !== null 
-      ? (isGreater ? prev[0] >= edgeX : prev[0] <= edgeX)
-      : (isGreater ? prev[1] >= edgeY : prev[1] <= edgeY)
-      
-    let currInside = edgeX !== null 
-      ? (isGreater ? curr[0] >= edgeX : curr[0] <= edgeX)
-      : (isGreater ? curr[1] >= edgeY : curr[1] <= edgeY)
-
-    if (currInside) {
-      if (!prevInside) {
-        output.push(computeIntersection(prev, curr, edgeX, edgeY))
-      }
-      output.push(curr)
-    } else if (prevInside) {
-      output.push(computeIntersection(prev, curr, edgeX, edgeY))
-    }
-    prev = curr
-  }
-  return output
-}
-
-function computeIntersection(p1, p2, edgeX, edgeY) {
-  if (edgeX !== null) {
-    let slope = (p2[1] - p1[1]) / (p2[0] - p1[0])
-    return [edgeX, p1[1] + slope * (edgeX - p1[0])]
-  } else {
-    let slope = (p2[0] - p1[0]) / (p2[1] - p1[1])
-    return [p1[0] + slope * (edgeY - p1[1]), edgeY]
-  }
-}
-
-function ResultLeafletCard({ title, subtitle, mix, geometry, center, optimal }) {
-  const { t } = useTranslation()
-  const mapStyle = optimal
-    ? { fillColor: '#10b981', fillOpacity: 0.55, color: '#f59e0b', weight: 3 }
-    : { fillColor: '#64748b', fillOpacity: 0.25, color: '#94a3b8', weight: 2 }
-
-  const cropPct = Number(mix?.crop_area_pct ?? 0)
-  const naturalPct = Number(mix?.natural_area_pct ?? 0)
-  const floralPct = Number(mix?.floral_strips_pct ?? 0)
-  const totalPct = cropPct + naturalPct + floralPct
-
-  // Extract outer ring of geometry to use for clipping
-  let subjectPoly = []
-  let minLon = 999, minLat = 999, maxLon = -999, maxLat = -999
-  if (geometry?.coordinates?.[0]) {
-    subjectPoly = geometry.coordinates[0]
-    subjectPoly.forEach(([lon, lat]) => {
-      if (lon < minLon) minLon = lon
-      if (lon > maxLon) maxLon = lon
-      if (lat < minLat) minLat = lat
-      if (lat > maxLat) maxLat = lat
-    })
-  }
-
-  // Generate deterministic grid (seed 84 for optimal, 42 for base)
-  const seed = optimal ? 84 : 42
-  const cells = generateLandscapeGrid(mix, seed)
-  const cellWidth = (maxLon - minLon) / 10
-  const cellHeight = (maxLat - minLat) / 10
-
-  const gridPolygons = []
-  if (subjectPoly.length > 2) {
-    cells.forEach((cell) => {
-      // Cell boundaries in lon/lat
-      const rectMinLon = minLon + cell.x * cellWidth
-      const rectMaxLon = rectMinLon + cellWidth
-      const rectMaxLat = maxLat - cell.z * cellHeight
-      const rectMinLat = rectMaxLat - cellHeight
-      
-      const rect = [rectMinLon, rectMinLat, rectMaxLon, rectMaxLat]
-      const clipped = clipPolygonAgainstRectangle(subjectPoly, rect)
-
-      if (clipped && clipped.length > 2) {
-        let color = 'transparent'
-        if (cell.type === 'crop') color = '#059669' // emerald-600
-        else if (cell.type === 'natural') color = '#065f46' // emerald-800
-        else if (cell.type === 'floral') color = '#f59e0b' // amber-500
-        
-        if (color !== 'transparent') {
-          // convert clipped [lon, lat] to Leaflet [lat, lon]
-          const positions = clipped.map(p => [p[1], p[0]])
-          gridPolygons.push(
-            <Polygon
-              key={`${cell.x}-${cell.z}`}
-              positions={positions}
-              pathOptions={{ fillColor: color, fillOpacity: 0.65, color, weight: 1, opacity: 0.8 }}
-            />
-          )
-        }
-      }
-    })
-  }
-
-  return (
-    <div className="flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm dark:border-slate-800/90 dark:bg-slate-900/90">
-      <div>
-        <div className="mb-3 flex items-center justify-between">
-          <div>
-            <h3 className="font-bold text-slate-900 dark:text-slate-100 font-display text-base">
-              {title}
-            </h3>
-            {subtitle && (
-              <p className="text-xs text-slate-500 dark:text-slate-400">{subtitle}</p>
-            )}
-          </div>
-          {optimal ? (
-            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs font-bold text-emerald-600 dark:text-emerald-400">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-              Recomendación IA
-            </span>
-          ) : (
-            <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-400">
-              Estado Actual
-            </span>
-          )}
-        </div>
-
-        {/* Satellite Map */}
-        <div className="relative z-0 h-60 w-full overflow-hidden rounded-xl border border-slate-200/80 dark:border-slate-800">
-          {center && (
-            <MapContainer
-              center={center}
-              zoom={14}
-              zoomControl={false}
-              dragging={false}
-              scrollWheelZoom={false}
-              className="h-full w-full"
-            >
-              <TileLayer
-                url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-                attribution="Tiles &copy; Esri"
-              />
-              {geometry && <GeoJSON data={geometry} pathOptions={{...mapStyle, fillOpacity: 0.1}} />}
-              {gridPolygons}
-            </MapContainer>
-          )}
-
-          <div className="pointer-events-none absolute bottom-2 right-2 rounded-md bg-black/60 px-2 py-0.5 text-[10px] text-white/90 backdrop-blur-xs font-mono">
-            Esri World Imagery
-          </div>
-        </div>
-
-        {/* Proportional Land-Use Bar */}
-        <div className="mt-4 space-y-1.5">
-          <div className="flex justify-between text-xs font-medium text-slate-600 dark:text-slate-300">
-            <span>Distribución de Superficie</span>
-            <span className="font-mono text-slate-400">{totalPct.toFixed(1)}% Total</span>
-          </div>
-          <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
-            <div
-              style={{ width: `${cropPct}%` }}
-              className="bg-emerald-500 transition-all"
-              title={`Cultivo: ${cropPct.toFixed(1)}%`}
-            />
-            <div
-              style={{ width: `${naturalPct}%` }}
-              className="bg-sky-500 transition-all"
-              title={`Seminatural: ${naturalPct.toFixed(1)}%`}
-            />
-            <div
-              style={{ width: `${floralPct}%` }}
-              className="bg-amber-400 transition-all"
-              title={`Franjas: ${floralPct.toFixed(1)}%`}
-            />
-          </div>
-        </div>
-
-        {/* Breakdown Metric Chips (acts as Legend) */}
-        <div className="mt-4 grid grid-cols-3 gap-2 text-center">
-          <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/[0.04] p-2.5 dark:bg-emerald-500/[0.08]">
-            <div className="flex items-center justify-center gap-1.5 mb-1">
-              <span className="h-2 w-2 rounded-xs bg-[#059669] inline-block shadow-xs" />
-              <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
-                {t('results_crop')}
-              </p>
-            </div>
-            <p className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100 font-display">
-              {mix?.crop_area_pct?.toFixed?.(1) ?? 'N/A'}%
-            </p>
-          </div>
-          <div className="rounded-xl border border-sky-500/20 bg-sky-500/[0.04] p-2.5 dark:bg-sky-500/[0.08]">
-            <div className="flex items-center justify-center gap-1.5 mb-1">
-              <span className="h-2 w-2 rounded-xs bg-[#065f46] inline-block shadow-xs" />
-              <p className="text-[10px] font-bold uppercase tracking-wider text-sky-700 dark:text-sky-300">
-                {t('results_seminatural')}
-              </p>
-            </div>
-            <p className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100 font-display">
-              {mix?.natural_area_pct?.toFixed?.(1) ?? 'N/A'}%
-            </p>
-          </div>
-          <div className="rounded-xl border border-amber-500/20 bg-amber-500/[0.04] p-2.5 dark:bg-amber-500/[0.08]">
-            <div className="flex items-center justify-center gap-1.5 mb-1">
-              <span className="h-2 w-2 rounded-xs bg-[#f59e0b] inline-block shadow-xs" />
-              <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300">
-                {t('results_floralStrips')}
-              </p>
-            </div>
-            <p className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100 font-display">
-              {mix?.floral_strips_pct?.toFixed?.(1) ?? 'N/A'}%
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
 
 const CustomScatterTooltip = ({ active, payload }) => {
   if (active && payload && payload.length) {
@@ -434,7 +201,7 @@ export default function ResultsDashboard({ result }) {
                 </div>
               )}
               <div className="grid gap-5 xl:grid-cols-2">
-                <ResultLeafletCard
+                <ExpandableMapCard
                   title={t('results_baseLandscape')}
                   subtitle="Configuración inicial del polígono delimitado"
                   mix={result.baseline}
@@ -442,7 +209,7 @@ export default function ResultsDashboard({ result }) {
                   center={result.baseline.center || [-8.1, -79.0]}
                   optimal={false}
                 />
-                <ResultLeafletCard
+                <ExpandableMapCard
                   title={t('results_optLandscape')}
                   subtitle="Matriz agroecológica optimizada con balance multiobjetivo"
                   mix={result.optimized_landscape.land_use_mix}
