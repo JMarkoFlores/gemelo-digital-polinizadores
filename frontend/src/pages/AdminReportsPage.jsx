@@ -19,6 +19,7 @@ import MetricCard from '../components/MetricCard'
 import PanelCard from '../components/PanelCard'
 import StatusBanner from '../components/StatusBanner'
 import EmptyState from '../components/EmptyState'
+import ReportExportBar from '../components/ReportExportBar'
 
 export default function AdminReportsPage() {
   const { t } = useTranslation()
@@ -33,7 +34,6 @@ export default function AdminReportsPage() {
   })
 
   const [loading, setLoading] = useState(true)
-  const [exporting, setExporting] = useState(false)
   const [error, setError] = useState('')
   const [operationalData, setOperationalData] = useState(null)
   const [managementData, setManagementData] = useState(null)
@@ -110,58 +110,6 @@ export default function AdminReportsPage() {
     }))
   }
 
-  // Export handlers
-  const handleExportPdf = async () => {
-    setExporting(true)
-    try {
-      const exporters = await import('../lib/generalReportExporters')
-      if (activeTab === 'operational' && operationalData) {
-        exporters.exportOperationalReportToPdf(operationalData, filters)
-      } else if (activeTab === 'management' && managementData) {
-        exporters.exportManagementReportToPdf(managementData, filters)
-      }
-    } catch (err) {
-      console.error('Error al exportar PDF:', err)
-      setError('Error al generar el documento PDF.')
-    } finally {
-      setExporting(false)
-    }
-  }
-
-  const handleExportWord = async () => {
-    setExporting(true)
-    try {
-      const exporters = await import('../lib/generalReportExporters')
-      if (activeTab === 'operational' && operationalData) {
-        await exporters.exportOperationalReportToDocx(operationalData, filters)
-      } else if (activeTab === 'management' && managementData) {
-        await exporters.exportManagementReportToDocx(managementData, filters)
-      }
-    } catch (err) {
-      console.error('Error al exportar Word:', err)
-      setError('Error al generar el documento Word.')
-    } finally {
-      setExporting(false)
-    }
-  }
-
-  const handleExportExcel = async () => {
-    setExporting(true)
-    try {
-      const exporters = await import('../lib/generalReportExporters')
-      if (activeTab === 'operational' && operationalData) {
-        exporters.exportOperationalReportToExcel(operationalData, filters)
-      } else if (activeTab === 'management' && managementData) {
-        exporters.exportManagementReportToExcel(managementData, filters)
-      }
-    } catch (err) {
-      console.error('Error al exportar Excel:', err)
-      setError('Error al generar el archivo Excel.')
-    } finally {
-      setExporting(false)
-    }
-  }
-
   const opResumen = operationalData?.resumen || {}
   const mgKpis = managementData?.kpis_agroecologicos || {}
 
@@ -183,80 +131,6 @@ export default function AdminReportsPage() {
               'Estadísticas agregadas de uso de plataforma y evaluación de impacto agroecológico multiobjetivo.'
             )}
           </p>
-        </div>
-
-        {/* Global Export Buttons */}
-        <div className="flex items-center gap-2 shrink-0">
-          <button
-            onClick={handleExportPdf}
-            disabled={loading || exporting}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-xs transition hover:bg-slate-50 disabled:opacity-50 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-            title="Exportar a PDF"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="text-rose-500"
-            >
-              <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
-              <polyline points="14 2 14 8 20 8" />
-            </svg>
-            <span>{exporting ? 'Generando...' : 'PDF'}</span>
-          </button>
-
-          <button
-            onClick={handleExportWord}
-            disabled={loading || exporting}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-3.5 py-2 text-xs font-semibold text-white shadow-xs transition hover:bg-blue-500 disabled:opacity-50"
-            title="Exportar a Word (.docx)"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
-              <polyline points="14 2 14 8 20 8" />
-            </svg>
-            <span>Word</span>
-          </button>
-
-          <button
-            onClick={handleExportExcel}
-            disabled={loading || exporting}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-green-600 px-3.5 py-2 text-xs font-semibold text-white shadow-xs transition hover:bg-green-500 disabled:opacity-50"
-            title="Exportar a Excel (.xlsx)"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-              <line x1="3" y1="9" x2="21" y2="9" />
-              <line x1="9" y1="21" x2="9" y2="9" />
-            </svg>
-            <span>Excel</span>
-          </button>
         </div>
       </section>
 
@@ -622,6 +496,9 @@ export default function AdminReportsPage() {
               )}
             </PanelCard>
           </div>
+
+          {/* Export Section for Operational Report */}
+          <ReportExportBar reportType="operational" filters={filters} />
         </div>
       ) : (
         /* =========================================================
@@ -832,6 +709,9 @@ export default function AdminReportsPage() {
               </div>
             )}
           </PanelCard>
+
+          {/* Export Section for Management Report */}
+          <ReportExportBar reportType="management" filters={filters} />
         </div>
       )}
     </div>

@@ -10,7 +10,7 @@ import {
   TextRun,
   HeadingLevel,
   AlignmentType,
-  BorderStyle,
+  ImageRun,
 } from 'docx'
 import { saveAs } from 'file-saver'
 
@@ -34,11 +34,27 @@ function formatFilterDate(d) {
   }
 }
 
+function base64ToUint8Array(base64Str) {
+  if (!base64Str) return null
+  try {
+    const clean = base64Str.replace(/^data:image\/\w+;base64,/, '')
+    const binary = atob(clean)
+    const bytes = new Uint8Array(binary.length)
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i)
+    }
+    return bytes
+  } catch (err) {
+    console.error('Error al decodificar base64 a Uint8Array:', err)
+    return null
+  }
+}
+
 // ==========================================
 // 1. REPORTE OPERATIVO - EXPORTADORES
 // ==========================================
 
-export function exportOperationalReportToPdf(reportData, filters = {}) {
+export function exportOperationalReportToPdf(reportData, filters = {}, charts = {}) {
   const doc = new jsPDF()
   const margin = 14
   let y = 18
@@ -49,15 +65,15 @@ export function exportOperationalReportToPdf(reportData, filters = {}) {
   doc.setFontSize(14)
   doc.setTextColor(255, 255, 255)
   doc.setFont('helvetica', 'bold')
-  doc.text('GEMELOS DIGITALES | REPORTE OPERATIVO', margin + 6, y + 9.5)
+  doc.text('GEMELOS DIGITALES | REPORTE OPERATIVO DE PLATAFORMA', margin + 6, y + 9.5)
   y += 20
 
-  // Subtitle & Metadata
+  // Subtitle
   doc.setFontSize(9)
-  doc.setTextColor(100, 116, 139) // Slate-500
+  doc.setTextColor(100, 116, 139)
   doc.setFont('helvetica', 'normal')
   const nowStr = new Date().toLocaleString()
-  doc.text(`Fecha de emisión: ${nowStr}  |  Ámbito: Uso y actividad global de la plataforma`, margin, y)
+  doc.text(`Fecha de emisión: ${nowStr}  |  Ámbito: Trazabilidad y supervisión del uso global`, margin, y)
   y += 7
 
   // Filter Box
@@ -70,7 +86,7 @@ export function exportOperationalReportToPdf(reportData, filters = {}) {
   const fEnd = formatFilterDate(filters.fecha_fin)
   const fReg = filters.region || 'Todas las regiones'
   const fUsr = filters.usuario_id ? `#${filters.usuario_id}` : 'Todos'
-  doc.text(`Filtros aplicados: Periodo [${fStart} - ${fEnd}]  |  Región: ${fReg}  |  Usuario: ${fUsr}`, margin + 4, y + 10)
+  doc.text(`Filtros: Periodo [${fStart} - ${fEnd}]  |  Región: ${fReg}  |  Usuario: ${fUsr}`, margin + 4, y + 10)
   y += 22
 
   // Summary KPI Cards Box
@@ -108,38 +124,29 @@ export function exportOperationalReportToPdf(reportData, filters = {}) {
   })
   y += 24
 
-  // Section 2: Tendencia de Simulaciones
-  doc.setFontSize(11)
-  doc.setTextColor(15, 23, 42)
-  doc.setFont('helvetica', 'bold')
-  doc.text('2. Tendencia de Ejecución de Simulaciones por Periodo', margin, y)
-  y += 6
+  // Chart 1: Embedded Trend Chart Image
+  if (charts.trend_chart_base64) {
+    doc.setFontSize(11)
+    doc.setTextColor(15, 23, 42)
+    doc.setFont('helvetica', 'bold')
+    doc.text('2. Gráfica de Tendencia de Uso de la Plataforma', margin, y)
+    y += 4
 
-  // Table header
-  doc.setFillColor(226, 232, 240)
-  doc.rect(margin, y, 182, 6, 'F')
-  doc.setFontSize(8)
-  doc.setTextColor(30, 41, 59)
-  doc.text('Periodo / Fecha', margin + 4, y + 4.2)
-  doc.text('Simulaciones del Periodo', margin + 80, y + 4.2)
-  doc.text('Total Acumulado', margin + 145, y + 4.2)
-  y += 6.5
-
-  const tendencia = (reportData.tendencia_temporal || []).slice(-10)
-  doc.setFont('helvetica', 'normal')
-  tendencia.forEach((pt, i) => {
-    if (i % 2 === 1) {
-      doc.setFillColor(248, 250, 252)
-      doc.rect(margin, y, 182, 5.5, 'F')
+    try {
+      const imgData = 'data:image/png;base64,' + charts.trend_chart_base64
+      doc.addImage(imgData, 'PNG', margin, y, 182, 68)
+      y += 73
+    } catch (e) {
+      console.warn('Error al embeber imagen de gráfica en PDF:', e)
     }
-    doc.text(String(pt.periodo), margin + 4, y + 4)
-    doc.text(String(pt.simulaciones), margin + 90, y + 4)
-    doc.text(String(pt.acumulado), margin + 155, y + 4)
-    y += 5.5
-  })
-  y += 8
+  }
 
   // Section 3: Ranking de Usuarios
+  if (y > 215) {
+    doc.addPage()
+    y = 20
+  }
+
   doc.setFontSize(11)
   doc.setTextColor(15, 23, 42)
   doc.setFont('helvetica', 'bold')
@@ -157,7 +164,7 @@ export function exportOperationalReportToPdf(reportData, filters = {}) {
   doc.text('Última Actividad', margin + 152, y + 4.2)
   y += 6.5
 
-  const usuarios = (reportData.ranking_usuarios || []).slice(0, 8)
+  const usuarios = (reportData.ranking_usuarios || []).slice(0, 10)
   doc.setFont('helvetica', 'normal')
   usuarios.forEach((u, i) => {
     if (i % 2 === 1) {
@@ -175,14 +182,15 @@ export function exportOperationalReportToPdf(reportData, filters = {}) {
   y += 8
 
   // Section 4: Regiones Más Simuladas
-  if (y > 230) {
+  if (y > 215) {
     doc.addPage()
     y = 20
   }
+
   doc.setFontSize(11)
   doc.setTextColor(15, 23, 42)
   doc.setFont('helvetica', 'bold')
-  doc.text('4. Distribución Geográfica de Simulaciones', margin, y)
+  doc.text('4. Distribución por Región Agroecológica', margin, y)
   y += 6
 
   doc.setFillColor(226, 232, 240)
@@ -215,7 +223,7 @@ export function exportOperationalReportToPdf(reportData, filters = {}) {
   doc.save(`Reporte_Operativo_GemeloDigital_${getTimestamp()}.pdf`)
 }
 
-export async function exportOperationalReportToDocx(reportData, filters = {}) {
+export async function exportOperationalReportToDocx(reportData, filters = {}, charts = {}) {
   const resumen = reportData.resumen || {}
   const cardData = [
     { metrica: 'Total de Simulaciones', valor: String(resumen.total_simulaciones ?? 0) },
@@ -230,19 +238,9 @@ export async function exportOperationalReportToDocx(reportData, filters = {}) {
   const createTableRow = (c1, c2, c3, isHeader = false) => {
     return new TableRow({
       children: [
-        new TableCell({
-          children: [new Paragraph({ children: [new TextRun({ text: c1, bold: isHeader })] })],
-        }),
-        new TableCell({
-          children: [new Paragraph({ children: [new TextRun({ text: c2, bold: isHeader })] })],
-        }),
-        ...(c3 !== undefined
-          ? [
-              new TableCell({
-                children: [new Paragraph({ children: [new TextRun({ text: c3, bold: isHeader })] })],
-              }),
-            ]
-          : []),
+        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: c1, bold: isHeader })] })] }),
+        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: c2, bold: isHeader })] })] }),
+        ...(c3 !== undefined ? [new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: c3, bold: isHeader })] })] })] : []),
       ],
     })
   }
@@ -254,16 +252,12 @@ export async function exportOperationalReportToDocx(reportData, filters = {}) {
 
   const tendenciaRows = [
     createTableRow('Periodo', 'Simulaciones', 'Acumulado', true),
-    ...(reportData.tendencia_temporal || []).map((pt) =>
-      createTableRow(String(pt.periodo), String(pt.simulaciones), String(pt.acumulado))
-    ),
+    ...(reportData.tendencia_temporal || []).map((pt) => createTableRow(String(pt.periodo), String(pt.simulaciones), String(pt.acumulado))),
   ]
 
   const regionRows = [
     createTableRow('Región / Zona', 'Total Simulaciones', 'Porcentaje', true),
-    ...(reportData.distribucion_regiones || []).map((r) =>
-      createTableRow(String(r.region), String(r.total), `${formatVal(r.porcentaje, 1)}%`)
-    ),
+    ...(reportData.distribucion_regiones || []).map((r) => createTableRow(String(r.region), String(r.total), `${formatVal(r.porcentaje, 1)}%`)),
   ]
 
   const userRows = [
@@ -275,57 +269,61 @@ export async function exportOperationalReportToDocx(reportData, filters = {}) {
         new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'Simulaciones', bold: true })] })] }),
       ],
     }),
-    ...(reportData.ranking_usuarios || []).map(
-      (u) =>
-        new TableRow({
-          children: [
-            new TableCell({ children: [new Paragraph(String(u.usuario_id))] }),
-            new TableCell({ children: [new Paragraph(String(u.email))] }),
-            new TableCell({ children: [new Paragraph(String(u.rol))] }),
-            new TableCell({ children: [new Paragraph(String(u.total_simulaciones))] }),
-          ],
-        })
-    ),
+    ...(reportData.ranking_usuarios || []).map((u) => new TableRow({
+      children: [
+        new TableCell({ children: [new Paragraph(String(u.usuario_id))] }),
+        new TableCell({ children: [new Paragraph(String(u.email))] }),
+        new TableCell({ children: [new Paragraph(String(u.rol))] }),
+        new TableCell({ children: [new Paragraph(String(u.total_simulaciones))] }),
+      ],
+    })),
   ]
 
+  // Optional Chart ImageRun
+  const chartRuns = []
+  if (charts.trend_chart_base64) {
+    const u8 = base64ToUint8Array(charts.trend_chart_base64)
+    if (u8) {
+      chartRuns.push(
+        new Paragraph({ text: '2. Gráfica de Tendencia de Uso de la Plataforma', heading: HeadingLevel.HEADING_2 }),
+        new Paragraph({
+          children: [
+            new ImageRun({
+              data: u8,
+              transformation: { width: 560, height: 235 },
+            }),
+          ],
+        }),
+        new Paragraph({ text: '', spacing: { after: 200 } })
+      )
+    }
+  }
+
   const doc = new Document({
-    sections: [
-      {
-        properties: {},
-        children: [
-          new Paragraph({
-            text: 'Plataforma Gemelos Digitales de Polinizadores',
-            heading: HeadingLevel.TITLE,
-            alignment: AlignmentType.CENTER,
-          }),
-          new Paragraph({
-            text: 'Reporte Operativo y de Uso Global',
-            heading: HeadingLevel.HEADING_1,
-            alignment: AlignmentType.CENTER,
-          }),
-          new Paragraph({
-            text: `Generado el: ${new Date().toLocaleString()}`,
-            alignment: AlignmentType.CENTER,
-            spacing: { after: 200 },
-          }),
+    sections: [{
+      properties: {},
+      children: [
+        new Paragraph({ text: 'Plataforma Gemelos Digitales de Polinizadores', heading: HeadingLevel.TITLE, alignment: AlignmentType.CENTER }),
+        new Paragraph({ text: 'Reporte Operativo y de Uso Global', heading: HeadingLevel.HEADING_1, alignment: AlignmentType.CENTER }),
+        new Paragraph({ text: `Fecha de emisión: ${new Date().toLocaleString()}`, alignment: AlignmentType.CENTER, spacing: { after: 200 } }),
+        new Paragraph({ text: '1. Resumen de Indicadores Clave', heading: HeadingLevel.HEADING_2 }),
+        new Table({ width: { size: 100, type: 'pct' }, rows: kpiRows }),
+        new Paragraph({ text: '', spacing: { after: 200 } }),
 
-          new Paragraph({ text: '1. Resumen de Indicadores Clave', heading: HeadingLevel.HEADING_2 }),
-          new Table({ width: { size: 100, type: 'pct' }, rows: kpiRows }),
-          new Paragraph({ text: '', spacing: { after: 200 } }),
+        ...chartRuns,
 
-          new Paragraph({ text: '2. Tendencia de Simulaciones por Periodo', heading: HeadingLevel.HEADING_2 }),
-          new Table({ width: { size: 100, type: 'pct' }, rows: tendenciaRows }),
-          new Paragraph({ text: '', spacing: { after: 200 } }),
+        new Paragraph({ text: '3. Tendencia de Simulaciones por Periodo', heading: HeadingLevel.HEADING_2 }),
+        new Table({ width: { size: 100, type: 'pct' }, rows: tendenciaRows }),
+        new Paragraph({ text: '', spacing: { after: 200 } }),
 
-          new Paragraph({ text: '3. Ranking de Usuarios Más Activos', heading: HeadingLevel.HEADING_2 }),
-          new Table({ width: { size: 100, type: 'pct' }, rows: userRows }),
-          new Paragraph({ text: '', spacing: { after: 200 } }),
+        new Paragraph({ text: '4. Ranking de Usuarios Más Activos', heading: HeadingLevel.HEADING_2 }),
+        new Table({ width: { size: 100, type: 'pct' }, rows: userRows }),
+        new Paragraph({ text: '', spacing: { after: 200 } }),
 
-          new Paragraph({ text: '4. Distribución por Región', heading: HeadingLevel.HEADING_2 }),
-          new Table({ width: { size: 100, type: 'pct' }, rows: regionRows }),
-        ],
-      },
-    ],
+        new Paragraph({ text: '5. Distribución por Región', heading: HeadingLevel.HEADING_2 }),
+        new Table({ width: { size: 100, type: 'pct' }, rows: regionRows }),
+      ],
+    }],
   })
 
   const blob = await Packer.toBlob(doc)
@@ -334,10 +332,9 @@ export async function exportOperationalReportToDocx(reportData, filters = {}) {
 
 export function exportOperationalReportToExcel(reportData, filters = {}) {
   const wb = XLSX.utils.book_new()
-
-  // Sheet 1: Resumen
   const resumen = reportData.resumen || {}
-  const resumenRows = [
+
+  const wsResumen = XLSX.utils.json_to_sheet([
     { Parametro: 'Fecha Emisión', Valor: new Date().toLocaleString() },
     { Parametro: 'Filtro Fecha Inicio', Valor: formatFilterDate(filters.fecha_inicio) },
     { Parametro: 'Filtro Fecha Fin', Valor: formatFilterDate(filters.fecha_fin) },
@@ -350,40 +347,33 @@ export function exportOperationalReportToExcel(reportData, filters = {}) {
       Parametro: 'Tiempo Promedio (s)',
       Valor: resumen.tiempo_promedio_segundos !== null ? resumen.tiempo_promedio_segundos : `~${resumen.tiempo_estimado_segundos || 1.25} (estimado)`,
     },
-  ]
-  const wsResumen = XLSX.utils.json_to_sheet(resumenRows)
+  ])
   wsResumen['!cols'] = [{ wch: 30 }, { wch: 35 }]
   XLSX.utils.book_append_sheet(wb, wsResumen, 'Resumen_Operativo')
 
-  // Sheet 2: Tendencia
-  const tendenciaRows = (reportData.tendencia_temporal || []).map((pt) => ({
+  const wsTendencia = XLSX.utils.json_to_sheet((reportData.tendencia_temporal || []).map((pt) => ({
     Periodo: pt.periodo,
     Simulaciones: pt.simulaciones,
     Acumulado: pt.acumulado,
-  }))
-  const wsTendencia = XLSX.utils.json_to_sheet(tendenciaRows)
+  })))
   wsTendencia['!cols'] = [{ wch: 20 }, { wch: 18 }, { wch: 18 }]
   XLSX.utils.book_append_sheet(wb, wsTendencia, 'Tendencia_Temporal')
 
-  // Sheet 3: Ranking Usuarios
-  const userRows = (reportData.ranking_usuarios || []).map((u) => ({
+  const wsUsers = XLSX.utils.json_to_sheet((reportData.ranking_usuarios || []).map((u) => ({
     Usuario_ID: u.usuario_id,
     Email: u.email,
     Rol: u.rol,
     Total_Simulaciones: u.total_simulaciones,
     Ultima_Simulacion: u.ultima_simulacion || 'N/D',
-  }))
-  const wsUsers = XLSX.utils.json_to_sheet(userRows)
+  })))
   wsUsers['!cols'] = [{ wch: 14 }, { wch: 32 }, { wch: 14 }, { wch: 20 }, { wch: 24 }]
   XLSX.utils.book_append_sheet(wb, wsUsers, 'Ranking_Usuarios')
 
-  // Sheet 4: Regiones
-  const regRows = (reportData.distribucion_regiones || []).map((r) => ({
+  const wsReg = XLSX.utils.json_to_sheet((reportData.distribucion_regiones || []).map((r) => ({
     Region: r.region,
     Total_Simulaciones: r.total,
     Porcentaje_Total: `${formatVal(r.porcentaje, 1)}%`,
-  }))
-  const wsReg = XLSX.utils.json_to_sheet(regRows)
+  })))
   wsReg['!cols'] = [{ wch: 30 }, { wch: 20 }, { wch: 18 }]
   XLSX.utils.book_append_sheet(wb, wsReg, 'Distribucion_Regiones')
 
@@ -394,7 +384,7 @@ export function exportOperationalReportToExcel(reportData, filters = {}) {
 // 2. REPORTE DE GESTIÓN - EXPORTADORES
 // ==========================================
 
-export function exportManagementReportToPdf(reportData, filters = {}) {
+export function exportManagementReportToPdf(reportData, filters = {}, charts = {}) {
   const doc = new jsPDF()
   const margin = 14
   let y = 18
@@ -480,11 +470,53 @@ export function exportManagementReportToPdf(reportData, filters = {}) {
   })
   y += 26
 
-  // Regional Comparison Table
+  // Chart 1: Evolution Chart Image
+  if (charts.evolution_chart_base64) {
+    doc.setFontSize(11)
+    doc.setTextColor(15, 23, 42)
+    doc.setFont('helvetica', 'bold')
+    doc.text('2. Evolución Agroecológica en el Tiempo', margin, y)
+    y += 4
+
+    try {
+      const imgData = 'data:image/png;base64,' + charts.evolution_chart_base64
+      doc.addImage(imgData, 'PNG', margin, y, 182, 68)
+      y += 73
+    } catch (e) {
+      console.warn('Error al embeber imagen de evolución en PDF:', e)
+    }
+  }
+
+  // Chart 2: Regional Multiobjective Chart Image
+  if (charts.regional_chart_base64) {
+    if (y > 210) {
+      doc.addPage()
+      y = 20
+    }
+    doc.setFontSize(11)
+    doc.setTextColor(15, 23, 42)
+    doc.setFont('helvetica', 'bold')
+    doc.text('3. Comparativa Multiobjetivo por Región', margin, y)
+    y += 4
+
+    try {
+      const imgData = 'data:image/png;base64,' + charts.regional_chart_base64
+      doc.addImage(imgData, 'PNG', margin, y, 182, 68)
+      y += 73
+    } catch (e) {
+      console.warn('Error al embeber imagen regional en PDF:', e)
+    }
+  }
+
+  // Section 4: Regional Comparison Table
+  if (y > 215) {
+    doc.addPage()
+    y = 20
+  }
   doc.setFontSize(11)
   doc.setTextColor(15, 23, 42)
   doc.setFont('helvetica', 'bold')
-  doc.text('2. Comparativa Agroecológica entre Regiones', margin, y)
+  doc.text('4. Métricas Comparativas por Región Agroecológica', margin, y)
   y += 6
 
   doc.setFillColor(226, 232, 240)
@@ -516,15 +548,15 @@ export function exportManagementReportToPdf(reportData, filters = {}) {
   })
   y += 8
 
-  // Section 3: Top Pareto Front Configurations
-  if (y > 210) {
+  // Section 5: Top Pareto Front Configurations
+  if (y > 200) {
     doc.addPage()
     y = 20
   }
   doc.setFontSize(11)
   doc.setTextColor(15, 23, 42)
   doc.setFont('helvetica', 'bold')
-  doc.text('3. Top Mejores Configuraciones de Paisaje (Frente de Pareto)', margin, y)
+  doc.text('5. Top Mejores Configuraciones de Paisaje (Frente de Pareto)', margin, y)
   y += 6
 
   doc.setFillColor(226, 232, 240)
@@ -569,7 +601,7 @@ export function exportManagementReportToPdf(reportData, filters = {}) {
   doc.save(`Reporte_Gestion_Agroecologica_${getTimestamp()}.pdf`)
 }
 
-export async function exportManagementReportToDocx(reportData, filters = {}) {
+export async function exportManagementReportToDocx(reportData, filters = {}, charts = {}) {
   const kpis = reportData.kpis_agroecologicos || {}
 
   const createTableRow = (cols, isHeader = false) => {
@@ -642,40 +674,65 @@ export async function exportManagementReportToDocx(reportData, filters = {}) {
     ),
   ]
 
+  // Optional Chart ImageRuns
+  const chartRuns = []
+  if (charts.evolution_chart_base64) {
+    const u8 = base64ToUint8Array(charts.evolution_chart_base64)
+    if (u8) {
+      chartRuns.push(
+        new Paragraph({ text: '2. Gráfica de Evolución Agroecológica en el Tiempo', heading: HeadingLevel.HEADING_2 }),
+        new Paragraph({
+          children: [
+            new ImageRun({
+              data: u8,
+              transformation: { width: 560, height: 240 },
+            }),
+          ],
+        }),
+        new Paragraph({ text: '', spacing: { after: 200 } })
+      )
+    }
+  }
+
+  if (charts.regional_chart_base64) {
+    const u8 = base64ToUint8Array(charts.regional_chart_base64)
+    if (u8) {
+      chartRuns.push(
+        new Paragraph({ text: '3. Gráfica de Comparativa Multiobjetivo por Región', heading: HeadingLevel.HEADING_2 }),
+        new Paragraph({
+          children: [
+            new ImageRun({
+              data: u8,
+              transformation: { width: 560, height: 240 },
+            }),
+          ],
+        }),
+        new Paragraph({ text: '', spacing: { after: 200 } })
+      )
+    }
+  }
+
   const doc = new Document({
-    sections: [
-      {
-        properties: {},
-        children: [
-          new Paragraph({
-            text: 'Plataforma Gemelos Digitales de Polinizadores',
-            heading: HeadingLevel.TITLE,
-            alignment: AlignmentType.CENTER,
-          }),
-          new Paragraph({
-            text: 'Reporte de Gestión Agroecológica Agregada',
-            heading: HeadingLevel.HEADING_1,
-            alignment: AlignmentType.CENTER,
-          }),
-          new Paragraph({
-            text: `Generado el: ${new Date().toLocaleString()}`,
-            alignment: AlignmentType.CENTER,
-            spacing: { after: 200 },
-          }),
+    sections: [{
+      properties: {},
+      children: [
+        new Paragraph({ text: 'Plataforma Gemelos Digitales de Polinizadores', heading: HeadingLevel.TITLE, alignment: AlignmentType.CENTER }),
+        new Paragraph({ text: 'Reporte de Gestión Agroecológica Agregada', heading: HeadingLevel.HEADING_1, alignment: AlignmentType.CENTER }),
+        new Paragraph({ text: `Fecha de emisión: ${new Date().toLocaleString()}`, alignment: AlignmentType.CENTER, spacing: { after: 200 } }),
+        new Paragraph({ text: '1. KPIs Agroecológicos Globales y Comprobación de Hipótesis', heading: HeadingLevel.HEADING_2 }),
+        new Table({ width: { size: 100, type: 'pct' }, rows: kpiRows }),
+        new Paragraph({ text: '', spacing: { after: 200 } }),
 
-          new Paragraph({ text: '1. KPIs Agroecológicos Globales y Comprobación de Hipótesis', heading: HeadingLevel.HEADING_2 }),
-          new Table({ width: { size: 100, type: 'pct' }, rows: kpiRows }),
-          new Paragraph({ text: '', spacing: { after: 200 } }),
+        ...chartRuns,
 
-          new Paragraph({ text: '2. Comparativa entre Regiones Agroecológicas', heading: HeadingLevel.HEADING_2 }),
-          new Table({ width: { size: 100, type: 'pct' }, rows: regionRows }),
-          new Paragraph({ text: '', spacing: { after: 200 } }),
+        new Paragraph({ text: '4. Comparativa entre Regiones Agroecológicas', heading: HeadingLevel.HEADING_2 }),
+        new Table({ width: { size: 100, type: 'pct' }, rows: regionRows }),
+        new Paragraph({ text: '', spacing: { after: 200 } }),
 
-          new Paragraph({ text: '3. Top Mejores Configuraciones de Paisaje (Frente de Pareto)', heading: HeadingLevel.HEADING_2 }),
-          new Table({ width: { size: 100, type: 'pct' }, rows: paretoRows }),
-        ],
-      },
-    ],
+        new Paragraph({ text: '5. Top Mejores Configuraciones de Paisaje (Frente de Pareto)', heading: HeadingLevel.HEADING_2 }),
+        new Table({ width: { size: 100, type: 'pct' }, rows: paretoRows }),
+      ],
+    }],
   })
 
   const blob = await Packer.toBlob(doc)
@@ -686,8 +743,7 @@ export function exportManagementReportToExcel(reportData, filters = {}) {
   const wb = XLSX.utils.book_new()
   const kpis = reportData.kpis_agroecologicos || {}
 
-  // Sheet 1: KPIs Agroecológicos
-  const kpiRows = [
+  const wsKpis = XLSX.utils.json_to_sheet([
     { Metrica: 'Fecha de Emisión', Valor: new Date().toLocaleString() },
     { Metrica: 'Filtro Fecha Inicio', Valor: formatFilterDate(filters.fecha_inicio) },
     { Metrica: 'Filtro Fecha Fin', Valor: formatFilterDate(filters.fecha_fin) },
@@ -707,13 +763,11 @@ export function exportManagementReportToExcel(reportData, filters = {}) {
     { Metrica: 'Tasa Cumplimiento Hipótesis (%)', Valor: `${formatVal(kpis.tasa_cumplimiento_hipotesis, 1)}%` },
     { Metrica: 'Simulaciones que Cumplen Hipótesis', Valor: kpis.simulaciones_cumplen_hipotesis ?? 0 },
     { Metrica: 'Simulaciones que No Cumplen', Valor: kpis.simulaciones_no_cumplen ?? 0 },
-  ]
-  const wsKpis = XLSX.utils.json_to_sheet(kpiRows)
+  ])
   wsKpis['!cols'] = [{ wch: 38 }, { wch: 35 }]
   XLSX.utils.book_append_sheet(wb, wsKpis, 'KPIs_Agroecologicos')
 
-  // Sheet 2: Comparación Regional
-  const regRows = (reportData.comparacion_regiones || []).map((cr) => ({
+  const wsReg = XLSX.utils.json_to_sheet((reportData.comparacion_regiones || []).map((cr) => ({
     Region: cr.region,
     Total_Simulaciones: cr.total_simulaciones,
     Rendimiento_Base: cr.rendimiento_promedio_base,
@@ -723,23 +777,11 @@ export function exportManagementReportToExcel(reportData, filters = {}) {
     Diversidad_Base: cr.diversidad_promedio_base,
     Diversidad_Optima: cr.diversidad_promedio_optimo,
     Tasa_Hipotesis: `${formatVal(cr.tasa_cumplimiento_hipotesis, 1)}%`,
-  }))
-  const wsReg = XLSX.utils.json_to_sheet(regRows)
-  wsReg['!cols'] = [
-    { wch: 28 },
-    { wch: 18 },
-    { wch: 18 },
-    { wch: 18 },
-    { wch: 18 },
-    { wch: 18 },
-    { wch: 16 },
-    { wch: 16 },
-    { wch: 16 },
-  ]
+  })))
+  wsReg['!cols'] = [{ wch: 28 }, { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 16 }, { wch: 16 }, { wch: 16 }]
   XLSX.utils.book_append_sheet(wb, wsReg, 'Comparacion_Regional')
 
-  // Sheet 3: Evolución Temporal
-  const evolRows = (reportData.evolucion_temporal || []).map((et) => ({
+  const wsEvol = XLSX.utils.json_to_sheet((reportData.evolucion_temporal || []).map((et) => ({
     Fecha: et.fecha,
     Rendimiento_Base: et.rendimiento_base,
     Rendimiento_Optimo: et.rendimiento_optimo,
@@ -749,23 +791,11 @@ export function exportManagementReportToExcel(reportData, filters = {}) {
     Delta_Abundancia: et.delta_abundancia,
     Diversidad_Base: et.diversidad_base,
     Diversidad_Optima: et.diversidad_optima,
-  }))
-  const wsEvol = XLSX.utils.json_to_sheet(evolRows)
-  wsEvol['!cols'] = [
-    { wch: 15 },
-    { wch: 18 },
-    { wch: 18 },
-    { wch: 18 },
-    { wch: 18 },
-    { wch: 18 },
-    { wch: 18 },
-    { wch: 16 },
-    { wch: 16 },
-  ]
+  })))
+  wsEvol['!cols'] = [{ wch: 15 }, { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 16 }, { wch: 16 }]
   XLSX.utils.book_append_sheet(wb, wsEvol, 'Evolucion_Temporal')
 
-  // Sheet 4: Top Pareto
-  const paretoRows = (reportData.top_configuraciones_pareto || []).map((p) => ({
+  const wsPareto = XLSX.utils.json_to_sheet((reportData.top_configuraciones_pareto || []).map((p) => ({
     Ranking: p.rank,
     Simulacion_ID: p.simulacion_id,
     Region: p.region,
@@ -779,23 +809,8 @@ export function exportManagementReportToExcel(reportData, filters = {}) {
     Pesticide_Level: p.pesticide_level,
     Soil_Management_Score: p.soil_management_score,
     Score_Agroecologico: p.score,
-  }))
-  const wsPareto = XLSX.utils.json_to_sheet(paretoRows)
-  wsPareto['!cols'] = [
-    { wch: 8 },
-    { wch: 14 },
-    { wch: 25 },
-    { wch: 22 },
-    { wch: 18 },
-    { wch: 25 },
-    { wch: 25 },
-    { wch: 14 },
-    { wch: 16 },
-    { wch: 16 },
-    { wch: 16 },
-    { wch: 22 },
-    { wch: 20 },
-  ]
+  })))
+  wsPareto['!cols'] = [{ wch: 8 }, { wch: 14 }, { wch: 25 }, { wch: 22 }, { wch: 18 }, { wch: 25 }, { wch: 25 }, { wch: 14 }, { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 22 }, { wch: 20 }]
   XLSX.utils.book_append_sheet(wb, wsPareto, 'Top_Frente_Pareto')
 
   XLSX.writeFile(wb, `Reporte_Gestion_Agroecologica_${getTimestamp()}.xlsx`)

@@ -60,6 +60,14 @@ async def get_management_report_endpoint(
     )
 
 
+from app.services.report_general_export_service import (
+    render_management_evolution_chart,
+    render_management_regional_chart,
+    render_operational_regions_chart,
+    render_operational_trend_chart,
+)
+
+
 @router.get("/operational/export")
 async def export_operational_report_data(
     fecha_inicio: datetime | None = None,
@@ -70,7 +78,7 @@ async def export_operational_report_data(
     current_user: Usuario = Depends(require_role("admin")),
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
-    """Retorna payload enriquecido para exportación estructurada del reporte operativo."""
+    """Retorna payload enriquecido para exportación estructurada del reporte operativo con gráficas renderizadas."""
     report_data = get_operational_report(
         db=db,
         fecha_inicio=fecha_inicio,
@@ -79,9 +87,16 @@ async def export_operational_report_data(
         usuario_id=usuario_id,
         periodo=periodo,
     )
+    report_dict = report_data.model_dump()
+    trend_chart = render_operational_trend_chart(report_dict.get("tendencia_temporal", []))
+    regions_chart = render_operational_regions_chart(report_dict.get("distribucion_regiones", []))
     return {
         "report_type": "operational",
-        "data": report_data.model_dump(),
+        "data": report_dict,
+        "charts": {
+            "trend_chart_base64": trend_chart,
+            "regions_chart_base64": regions_chart,
+        },
         "report_context": {
             "generated_at": datetime.utcnow().isoformat(),
             "exported_by": current_user.email,
@@ -100,7 +115,7 @@ async def export_management_report_data(
     current_user: Usuario = Depends(require_role("admin")),
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
-    """Retorna payload enriquecido para exportación estructurada del reporte de gestión."""
+    """Retorna payload enriquecido para exportación estructurada del reporte de gestión con gráficas renderizadas."""
     report_data = get_management_report(
         db=db,
         fecha_inicio=fecha_inicio,
@@ -109,9 +124,16 @@ async def export_management_report_data(
         usuario_id=usuario_id,
         top_n=top_n,
     )
+    report_dict = report_data.model_dump()
+    evolution_chart = render_management_evolution_chart(report_dict.get("evolucion_temporal", []))
+    regional_chart = render_management_regional_chart(report_dict.get("comparacion_regiones", []))
     return {
         "report_type": "management",
-        "data": report_data.model_dump(),
+        "data": report_dict,
+        "charts": {
+            "evolution_chart_base64": evolution_chart,
+            "regional_chart_base64": regional_chart,
+        },
         "report_context": {
             "generated_at": datetime.utcnow().isoformat(),
             "exported_by": current_user.email,
