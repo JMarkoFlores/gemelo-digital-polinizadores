@@ -11,6 +11,7 @@ const ClientHistoryPage = lazy(() => import('./pages/ClientHistoryPage'))
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'))
 const AdminUsersPage = lazy(() => import('./pages/AdminUsersPage'))
 const AdminSimulationsPage = lazy(() => import('./pages/AdminSimulationsPage'))
+const AdminReportsPage = lazy(() => import('./pages/AdminReportsPage'))
 const ChatWidget = lazy(() => import('./components/ChatWidget'))
 
 export default function App() {
@@ -28,6 +29,7 @@ export default function App() {
             <Route index element={<AdminDashboard />} />
             <Route path="users" element={<AdminUsersPage />} />
             <Route path="simulations" element={<AdminSimulationsPage />} />
+            <Route path="reports" element={<AdminReportsPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>

@@ -16,6 +16,7 @@ const resources = {
       nav_summary: 'Resumen',
       nav_users: 'Usuarios',
       nav_simulations: 'Simulaciones',
+      nav_reports: 'Reportes Generales',
 
       // Auth
       login: 'Iniciar sesion',
@@ -90,6 +91,20 @@ const resources = {
       adminSim_records: '{{count}} registros',
       adminSim_prev: 'Anterior',
       adminSim_next: 'Siguiente',
+
+      // Admin Reports
+      adminReports_badge: 'Reportes Generales',
+      adminReports_title: 'Reportes Generales y Analitica',
+      adminReports_subtitle: 'Supervision operativa de uso y evaluacion agregada de indicadores agroecologicos.',
+      adminReports_errorLoad: 'No fue posible cargar los reportes agregados.',
+      adminReports_filterTitle: 'Filtros Globales de Analitica',
+      adminReports_filterSub: 'Delimita el periodo temporal, territorio y usuarios para el computo.',
+      adminReports_startDate: 'Fecha Inicio',
+      adminReports_endDate: 'Fecha Fin',
+      adminReports_filterRegion: 'Region / Zona',
+      adminReports_filterUser: 'Usuario ID (opcional)',
+      adminReports_applyBtn: 'Aplicar Filtros',
+      adminReports_resetBtn: 'Limpiar',
 
       // Client Optimize
       clientOpt_badge: 'Cliente',
@@ -192,6 +207,7 @@ const resources = {
       nav_summary: 'Summary',
       nav_users: 'Users',
       nav_simulations: 'Simulations',
+      nav_reports: 'General Reports',
 
       // Auth
       login: 'Sign in',
@@ -266,6 +282,20 @@ const resources = {
       adminSim_records: '{{count}} records',
       adminSim_prev: 'Previous',
       adminSim_next: 'Next',
+
+      // Admin Reports
+      adminReports_badge: 'General Reports',
+      adminReports_title: 'General Reports & Analytics',
+      adminReports_subtitle: 'Platform operational usage overview and aggregated agroecological KPI assessment.',
+      adminReports_errorLoad: 'Could not load aggregated reports.',
+      adminReports_filterTitle: 'Global Analytics Filters',
+      adminReports_filterSub: 'Filter temporal period, geographic area, and users for aggregation.',
+      adminReports_startDate: 'Start Date',
+      adminReports_endDate: 'End Date',
+      adminReports_filterRegion: 'Region / Zone',
+      adminReports_filterUser: 'User ID (optional)',
+      adminReports_applyBtn: 'Apply Filters',
+      adminReports_resetBtn: 'Reset',
 
       // Client Optimize
       clientOpt_badge: 'Client',

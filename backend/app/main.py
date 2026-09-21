@@ -53,6 +53,8 @@ async def lifespan(app: FastAPI):
     model_store.stop_watcher()
 
 
+from app.routers.admin_reports import router as admin_reports_router
+
 app = FastAPI(title=settings.app_name, lifespan=lifespan)
 
 app.add_middleware(
@@ -62,6 +64,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(admin_reports_router)
 
 
 def paginate(query, page: int, page_size: int):
