@@ -97,6 +97,8 @@ async def healthcheck():
         "model_ready": model_store.is_ready,
         "model_version": model_store.version,
         "model_status": model_store.status_message,
+        "fuente_datos": model_store.fuente_datos,
+        "data_source_summary": model_store.data_source_summary,
     }
 
 
@@ -138,7 +140,13 @@ async def reload_model(_: Usuario = Depends(require_role("admin", "cliente"))):
     trigger a reload after Streamlit exports the model.
     """
     model_store.reload()
-    return {"model_ready": model_store.is_ready, "model_status": model_store.status_message, "model_version": model_store.version}
+    return {
+        "model_ready": model_store.is_ready,
+        "model_status": model_store.status_message,
+        "model_version": model_store.version,
+        "fuente_datos": model_store.fuente_datos,
+        "data_source_summary": model_store.data_source_summary,
+    }
 
 
 @app.get("/api/model/status")
@@ -147,6 +155,8 @@ async def model_status(current_user: Usuario = Depends(require_role("admin", "cl
         "model_ready": model_store.is_ready,
         "model_status": model_store.status_message,
         "model_version": model_store.version,
+        "fuente_datos": model_store.fuente_datos,
+        "data_source_summary": model_store.data_source_summary,
         "requested_by": current_user.email,
     }
 

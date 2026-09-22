@@ -104,7 +104,19 @@ class ModelStore:
             self.model = tf.keras.models.load_model(self.model_path, compile=False)
             self.metadata = self._load_metadata()
             self.status_message = f"Loaded model from {self.model_path}"
-            logger.info("Model loaded successfully: %s", self.model_path)
+            fuente = self.metadata.get("fuente_datos", "no registrada")
+            region = self.metadata.get("region_name")
+            region_str = f" | región: {region}" if region else ""
+            n_samples = self.metadata.get("n_samples") or self.metadata.get("dataset_rows")
+            samples_str = f" | registros: {n_samples}" if n_samples else ""
+            logger.info(
+                "Model loaded successfully: %s (versión: %s | fuente_datos: %s%s%s)",
+                self.model_path,
+                self.version,
+                fuente,
+                region_str,
+                samples_str,
+            )
         except Exception as exc:  # noqa: BLE001
             self.model = None
             self.metadata = {}
@@ -128,6 +140,22 @@ class ModelStore:
     @property
     def version(self) -> str | None:
         return self.metadata.get("version")
+
+    @property
+    def fuente_datos(self) -> str | None:
+        return self.metadata.get("fuente_datos")
+
+    @property
+    def data_source_summary(self) -> dict[str, Any]:
+        return {
+            "fuente_datos": self.metadata.get("fuente_datos"),
+            "data_source_label": self.metadata.get("data_source_label"),
+            "region_name": self.metadata.get("region_name"),
+            "n_samples": self.metadata.get("n_samples") or self.metadata.get("dataset_rows"),
+            "gbif_occurrences": self.metadata.get("gbif_occurrences"),
+            "distinct_species_count": self.metadata.get("distinct_species_count"),
+            "clima_resumen": self.metadata.get("clima_resumen"),
+        }
 
 
 model_store = ModelStore()
