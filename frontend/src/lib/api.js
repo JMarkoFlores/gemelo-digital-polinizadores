@@ -269,16 +269,7 @@ api.interceptors.response.use(
         }
       }
 
-      if (url.includes('/api/chat')) {
-        let msg = ''
-        try { msg = JSON.parse(error.config?.data || '{}').message || '' } catch { /* ignore */ }
-        const answer = msg.toLowerCase().includes('pareto')
-          ? 'El frente de Pareto ilustra las configuraciones óptimas donde no es posible aumentar el rendimiento agrícola sin comprometer la abundancia de polinizadores, permitiendo seleccionar el punto de equilibrio óptimo.'
-          : msg.toLowerCase().includes('franja') || msg.toLowerCase().includes('natural')
-          ? 'Recomendamos destinar entre 15% y 25% del área a bordes florales y vegetación seminatural para maximizar la conectividad ecológica y el forrajeo de abejas nativas.'
-          : 'El gemelo digital integra modelos basados en agentes (ABM) con aprendizaje automático para simular la dinámica poblacional de polinizadores según el uso del suelo y agroquímicos.'
-        return { data: { reply: answer }, status: 200 }
-      }
+
     }
 
     return Promise.reject(error)

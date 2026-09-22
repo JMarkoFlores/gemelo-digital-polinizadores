@@ -106,8 +106,14 @@ class SimulationResultPayload(BaseModel):
     model_config = {"protected_namespaces": ()}
 
 
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+
+
 class ChatRequest(BaseModel):
-    message: str = Field(min_length=3, max_length=2000)
+    message: str = Field(min_length=1, max_length=2000)
+    history: list[ChatMessage] = Field(default_factory=list)
 
 
 class ChatResponse(BaseModel):

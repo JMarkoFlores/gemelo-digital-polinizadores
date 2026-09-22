@@ -317,13 +317,20 @@ async def simulation_report_data(simulation_id: int, _: Usuario = Depends(requir
 
 
 @app.post("/api/chat", response_model=ChatResponse)
-async def chat(payload: ChatRequest, current_user: Usuario = Depends(require_role("cliente", "admin"))):
+async def chat(
+    payload: ChatRequest,
+    current_user: Usuario = Depends(require_role("cliente", "admin")),
+    db: Session = Depends(get_db),
+):
     try:
-        reply, model_name = generate_chat_reply(payload.message)
-    except RuntimeError as exc:
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
+        reply, model_name = generate_chat_reply(
+            message=payload.message,
+            user=current_user,
+            db=db,
+            history=[m.model_dump() for m in payload.history],
+        )
     except Exception as exc:
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Chat provider error: {exc}") from exc
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error en el servicio de chat: {exc}") from exc
     return ChatResponse(reply=reply, model=model_name)
 
 
