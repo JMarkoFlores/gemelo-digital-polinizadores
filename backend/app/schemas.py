@@ -102,6 +102,7 @@ class SimulationResultPayload(BaseModel):
     hypothesis_status: str
     model_version: str | None = None
     cache_hit: bool = False
+    recomendacion_ia: str | None = None
 
     model_config = {"protected_namespaces": ()}
 

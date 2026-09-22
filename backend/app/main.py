@@ -33,6 +33,7 @@ from app.security import create_access_token, hash_password, verify_password
 from app.services.chat_service import generate_chat_reply
 from app.services.model_store import model_store
 from app.services.optimization import run_simulation
+from app.services.recommendation_service import generate_ai_recommendation
 
 settings = get_settings()
 
@@ -165,6 +166,15 @@ async def simular(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except RuntimeError as exc:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
+
+    # Enriquecer motivo de selección con el Asistente de Recomendaciones Agroecológicas (Langflow/IA)
+    recomendacion = generate_ai_recommendation(
+        baseline=result["baseline"],
+        best_solution=result["best_solution"],
+        pareto_front=result["pareto_front"],
+    )
+    result["best_solution"]["selection_reason"] = recomendacion
+    result["recomendacion_ia"] = recomendacion
 
     simulation = Simulacion(
         usuario_id=current_user.id,

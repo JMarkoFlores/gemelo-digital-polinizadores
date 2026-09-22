@@ -17,6 +17,7 @@ import MetricCard from './MetricCard'
 import EmptyState from './EmptyState'
 import LandscapeDiorama3D from './LandscapeDiorama3D'
 import ExpandableMapCard from './ExpandableMapCard'
+import RecommendationAccordion from './RecommendationAccordion'
 
 
 const CustomScatterTooltip = ({ active, payload }) => {
@@ -241,61 +242,77 @@ export default function ResultsDashboard({ result }) {
       </PanelCard>
 
       {/* Pareto Front & Best Solution Breakdown */}
-      <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+      <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr] items-stretch">
         <PanelCard
           id="panel-pareto-front"
           title={t('results_pareto_title')}
           subtitle={t('results_pareto_sub')}
+          className="flex flex-col h-full justify-between"
         >
-          {/* Plain-Language Interpretation for Pareto Front */}
-          <div className="mb-4 rounded-xl border border-sky-500/20 bg-sky-500/[0.04] p-3.5 dark:bg-sky-500/[0.08]">
-            <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
-              💡 Cada punto representa una configuración de paisaje distinta que logra un balance diferente entre rendimiento agrícola y abundancia de polinizadores — no existe una única &ldquo;mejor&rdquo; opción, sino distintos compromisos posibles. La estrella verde es la configuración recomendada por el sistema como mejor equilibrio entre ambos objetivos.
-            </p>
+          <div>
+            {/* Plain-Language Interpretation for Pareto Front */}
+            <div className="mb-4 rounded-xl border border-sky-500/20 bg-sky-500/[0.04] p-3.5 dark:bg-sky-500/[0.08]">
+              <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
+                💡 Cada punto representa una configuración de paisaje distinta que logra un balance diferente entre rendimiento agrícola y abundancia de polinizadores — no existe una única &ldquo;mejor&rdquo; opción, sino distintos compromisos posibles. La estrella verde es la configuración recomendada por el sistema como mejor equilibrio entre ambos objetivos.
+              </p>
+            </div>
+
+            <div className="h-80 w-full pt-2">
+              <ResponsiveContainer width="100%" height="100%">
+                <ScatterChart margin={{ top: 20, right: 15, left: -10, bottom: 10 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" opacity={0.6} />
+                  <XAxis
+                    type="number"
+                    dataKey="crop_yield_index"
+                    name={t('results_yield_axis')}
+                    domain={['auto', 'auto']}
+                    tick={{ fontSize: 11, fill: '#64748b' }}
+                    label={{ value: t('results_yield_axis'), position: 'bottom', offset: 0, fontSize: 11, fill: '#64748b' }}
+                  />
+                  <YAxis
+                    type="number"
+                    dataKey="pollinator_abundance_index"
+                    name={t('results_pollinators_axis')}
+                    domain={['auto', 'auto']}
+                    tick={{ fontSize: 11, fill: '#64748b' }}
+                    label={{ value: t('results_pollinators_axis'), angle: -90, position: 'left', offset: 20, fontSize: 11, fill: '#64748b' }}
+                  />
+                  <Tooltip content={<CustomScatterTooltip />} />
+                  <Legend verticalAlign="top" height={36} wrapperStyle={{ fontSize: '12px' }} />
+                  <Scatter
+                    name="Frente de Soluciones (NSGA-II)"
+                    data={result.pareto_front}
+                    fill="#38bdf8"
+                    fillOpacity={0.5}
+                  />
+                  <Scatter
+                    name="Línea Base"
+                    data={[result.baseline]}
+                    fill="#64748b"
+                    shape="circle"
+                  />
+                  <Scatter
+                    name="Solución Óptima Elegida"
+                    data={[result.best_solution]}
+                    fill="#10b981"
+                    shape="star"
+                  />
+                </ScatterChart>
+              </ResponsiveContainer>
+            </div>
           </div>
 
-          <div className="h-80 w-full pt-2">
-            <ResponsiveContainer width="100%" height="100%">
-              <ScatterChart margin={{ top: 20, right: 15, left: -10, bottom: 10 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" opacity={0.6} />
-                <XAxis
-                  type="number"
-                  dataKey="crop_yield_index"
-                  name={t('results_yield_axis')}
-                  domain={['auto', 'auto']}
-                  tick={{ fontSize: 11, fill: '#64748b' }}
-                  label={{ value: t('results_yield_axis'), position: 'bottom', offset: 0, fontSize: 11, fill: '#64748b' }}
-                />
-                <YAxis
-                  type="number"
-                  dataKey="pollinator_abundance_index"
-                  name={t('results_pollinators_axis')}
-                  domain={['auto', 'auto']}
-                  tick={{ fontSize: 11, fill: '#64748b' }}
-                  label={{ value: t('results_pollinators_axis'), angle: -90, position: 'left', offset: 20, fontSize: 11, fill: '#64748b' }}
-                />
-                <Tooltip content={<CustomScatterTooltip />} />
-                <Legend verticalAlign="top" height={36} wrapperStyle={{ fontSize: '12px' }} />
-                <Scatter
-                  name="Frente de Soluciones (NSGA-II)"
-                  data={result.pareto_front}
-                  fill="#38bdf8"
-                  fillOpacity={0.5}
-                />
-                <Scatter
-                  name="Línea Base"
-                  data={[result.baseline]}
-                  fill="#64748b"
-                  shape="circle"
-                />
-                <Scatter
-                  name="Solución Óptima Elegida"
-                  data={[result.best_solution]}
-                  fill="#10b981"
-                  shape="star"
-                />
-              </ScatterChart>
-            </ResponsiveContainer>
+          {/* Pareto summary footer bar */}
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-100 bg-slate-50/80 p-3 text-xs text-slate-600 dark:border-slate-800 dark:bg-slate-950/50 dark:text-slate-400">
+            <div className="flex items-center gap-2">
+              <span className="inline-block h-2.5 w-2.5 rounded-full bg-emerald-500 shadow-xs" />
+              <span>
+                Óptimo seleccionado: <strong className="text-slate-900 dark:text-slate-100">{Number(result.best_solution?.crop_yield_index || 0).toFixed(2)}</strong> Rend. / <strong className="text-slate-900 dark:text-slate-100">{Number(result.best_solution?.pollinator_abundance_index || 0).toFixed(2)}</strong> Polin.
+              </span>
+            </div>
+            <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+              {result.pareto_front?.length || 0} configuraciones evaluadas (NSGA-II)
+            </div>
           </div>
         </PanelCard>
 
@@ -303,64 +320,62 @@ export default function ResultsDashboard({ result }) {
           id="panel-best-solution"
           title={t('results_best_title')}
           subtitle={t('results_best_sub')}
+          className="flex flex-col h-full justify-between"
         >
           <div className="space-y-2 text-xs sm:text-sm">
-            {Object.entries(result.best_solution).map(([key, value]) => {
-              // Human readable Spanish format
-              const labels = {
-                crop_yield_index: 'Rendimiento proyectado',
-                pollinator_abundance_index: 'Abundancia polinizadores',
-                crop_area_pct: '% Área de cultivo',
-                natural_area_pct: '% Área natural',
-                floral_strips_pct: '% Franjas florales',
-                pesticide_level: 'Nivel pesticidas',
-                selection_reason: 'Motivo de selección',
-                selectionReason: 'Motivo de selección',
-                Selection_Reason: 'Motivo de selección',
-              }
-              const displayLabel = labels[key] || key.replace(/_/g, ' ')
-
-              // Translate and format values into clean Spanish
-              let displayValue = value
-              if (typeof value === 'number') {
-                displayValue = value.toFixed(3)
-              } else if (typeof value === 'string') {
-                const lower = value.toLowerCase()
-                if (
-                  lower.includes('best compromise') ||
-                  lower.includes('maximizing pollinator') ||
-                  lower.includes('protecting yield')
-                ) {
-                  displayValue = 'Mejor compromiso entre proteger el rendimiento y maximizar la ganancia de polinizadores.'
+            {Object.entries(result.best_solution)
+              .filter(([key]) => !['selection_reason', 'selectionReason', 'Selection_Reason', 'recomendacion_ia'].includes(key))
+              .map(([key, value]) => {
+                const labels = {
+                  crop_yield_index: 'Rendimiento proyectado',
+                  pollinator_abundance_index: 'Abundancia polinizadores',
+                  crop_area_pct: '% Área de cultivo',
+                  natural_area_pct: '% Área natural',
+                  floral_strips_pct: '% Franjas florales',
+                  pesticide_level: 'Nivel pesticidas',
+                  soil_management_score: 'Índice manejo del suelo',
+                  landscape_diversity: 'Diversidad del paisaje',
+                  pollinator_diversity_index: 'Diversidad polinizadores',
                 }
-              }
+                const displayLabel = labels[key] || key.replace(/_/g, ' ')
+                let displayValue = typeof value === 'number' ? value.toFixed(3) : String(value)
+
+                return (
+                  <div
+                    key={key}
+                    className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50/70 px-3.5 py-2.5 dark:border-slate-800 dark:bg-slate-950/50"
+                  >
+                    <span className="font-medium text-slate-600 dark:text-slate-300 capitalize">
+                      {displayLabel}
+                    </span>
+                    <span className="font-bold text-slate-900 dark:text-slate-100 font-display text-right">
+                      {displayValue}
+                    </span>
+                  </div>
+                )
+              })}
+
+            {/* Tarjeta colapsable de Motivo de Selección / Recomendación IA */}
+            {(() => {
+              const rawReason =
+                result.recomendacion_ia ||
+                result.best_solution?.selection_reason ||
+                result.best_solution?.selectionReason ||
+                'Mejor compromiso entre proteger el rendimiento y maximizar la ganancia de polinizadores.'
+
+              const isAiGenerated =
+                Boolean(result.recomendacion_ia) ||
+                (rawReason &&
+                  !rawReason.toLowerCase().includes('best compromise maximizing') &&
+                  rawReason.length > 80)
 
               return (
-                <div
-                  key={key}
-                  className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50/70 px-3.5 py-2.5 dark:border-slate-800 dark:bg-slate-950/50"
-                >
-                  <span className="font-medium text-slate-600 dark:text-slate-300 capitalize">
-                    {displayLabel}
-                  </span>
-                  <span className="font-bold text-slate-900 dark:text-slate-100 font-display text-right">
-                    {String(displayValue)}
-                  </span>
-                </div>
+                <RecommendationAccordion
+                  rawReason={rawReason}
+                  isAiGenerated={isAiGenerated}
+                />
               )
-            })}
-
-            {/* Guaranteed explicit Selection Reason in Spanish if not already in dictionary keys */}
-            {!('selection_reason' in result.best_solution) && !('selectionReason' in result.best_solution) && (
-              <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/[0.04] p-3 dark:border-emerald-500/30 dark:bg-emerald-500/[0.08]">
-                <p className="font-semibold text-emerald-800 dark:text-emerald-300 text-xs">
-                  Motivo de selección:
-                </p>
-                <p className="mt-1 text-slate-700 dark:text-slate-200 text-xs leading-relaxed">
-                  Mejor compromiso entre proteger el rendimiento y maximizar la ganancia de polinizadores.
-                </p>
-              </div>
-            )}
+            })()}
           </div>
         </PanelCard>
       </div>

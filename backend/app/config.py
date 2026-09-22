@@ -28,6 +28,8 @@ class Settings(BaseSettings):
     model_metadata_filename: str = "modelo_optimizado_metadata.json"
     cache_ttl_seconds: int = 900
     cache_max_items: int = 64
+    langflow_url: str = "http://langflow:7860"
+    langflow_flow_id: str = "asistente-recomendaciones-agroecologicas"
 
     @property
     def cors_origin_list(self) -> list[str]:

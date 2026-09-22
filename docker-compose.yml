@@ -32,6 +32,8 @@ services:
       CLIENT_PASSWORD: ${CLIENT_PASSWORD:-Cliente12345!}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}
       WATCHFILES_FORCE_POLLING: "true"
+      LANGFLOW_URL: ${LANGFLOW_URL:-http://langflow:7860}
+      LANGFLOW_FLOW_ID: ${LANGFLOW_FLOW_ID:-asistente-recomendaciones-agroecologicas}
     ports:
       - "${BACKEND_PORT:-8000}:8000"
     volumes:
@@ -68,6 +70,22 @@ services:
       - modelos_ia_volume:/modelos_ia/
     command: streamlit run app.py --server.address=0.0.0.0 --server.port=8501
 
+  langflow:
+    image: langflowai/langflow:latest
+    container_name: gemelos_langflow
+    ports:
+      - "${LANGFLOW_PORT:-7860}:7860"
+    environment:
+      - LANGFLOW_HOST=0.0.0.0
+      - LANGFLOW_PORT=7860
+      - GROQ_API_KEY=${GROQ_API_KEY:-}
+      - LANGFLOW_AUTO_LOGIN=true
+    volumes:
+      - langflow_data:/app/langflow
+      - ./langflow/flows:/app/flows
+    restart: unless-stopped
+
 volumes:
   postgres_data:
   modelos_ia_volume:
+  langflow_data:

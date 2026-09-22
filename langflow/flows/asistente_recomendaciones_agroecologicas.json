@@ -1,0 +1,177 @@
+{
+  "id": "asistente-recomendaciones-agroecologicas",
+  "name": "Asistente de Recomendaciones Agroecológicas",
+  "description": "Flujo de Langflow que analiza el Frente de Pareto, la solución recomendada por NSGA-II y la línea base para generar recomendaciones agronómicas explicables con trade-offs reales.",
+  "data": {
+    "nodes": [
+      {
+        "id": "node_input_data",
+        "type": "genericNode",
+        "position": { "x": 50, "y": 200 },
+        "data": {
+          "type": "CustomComponent",
+          "node": {
+            "name": "DatosOptimizacionInput",
+            "display_name": "1. Entrada de Optimización",
+            "description": "Recibe el payload JSON con frente_pareto, solucion_elegida y linea_base.",
+            "template": {
+              "frente_pareto": {
+                "type": "list",
+                "required": true,
+                "value": [],
+                "info": "Lista de soluciones no dominadas del Frente de Pareto"
+              },
+              "solucion_elegida": {
+                "type": "dict",
+                "required": true,
+                "value": {},
+                "info": "Configuración óptima recomendada por NSGA-II"
+              },
+              "linea_base": {
+                "type": "dict",
+                "required": true,
+                "value": {},
+                "info": "Métricas del estado inicial del paisaje"
+              }
+            },
+            "outputs": [
+              {
+                "name": "raw_data",
+                "display_name": "Datos Crudos JSON",
+                "type": "dict"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": "node_formatter",
+        "type": "genericNode",
+        "position": { "x": 400, "y": 200 },
+        "data": {
+          "type": "CustomComponent",
+          "node": {
+            "name": "ParetoTradeoffFormatter",
+            "display_name": "2. Formateador de Trade-offs",
+            "description": "Analiza la solución recomendada vs. extremos del Frente de Pareto y genera la tabla de trade-offs.",
+            "code": "from langflow.custom import Component\nfrom langflow.io import Output, Input\n\nclass ParetoTradeoffFormatter(Component):\n    display_name = 'Formateador de Trade-offs'\n    description = 'Procesa los datos de optimización y genera el resumen comparativo.'\n    \n    inputs = [\n        Input(name='raw_data', display_name='Datos Crudos', type='dict')\n    ]\n    outputs = [\n        Output(name='resumen_comparativo', display_name='Resumen Estructurado', type='str')\n    ]\n    \n    def process(self) -> str:\n        data = self.raw_data or {}\n        sol = data.get('solucion_elegida', {})\n        base = data.get('linea_base', {})\n        pareto = data.get('frente_pareto', [])\n        \n        # Extracción de métricas clave\n        yb = base.get('crop_yield_index', 0)\n        pb = base.get('pollinator_abundance_index', 0)\n        yo = sol.get('crop_yield_index', yb)\n        po = sol.get('pollinator_abundance_index', pb)\n        \n        delta_y = round(yo - yb, 2)\n        delta_p_pct = round(((po - pb) / max(1.0, pb)) * 100, 1)\n        \n        # Alternativas extremas en el frente\n        max_y_cand = max(pareto, key=lambda x: x.get('crop_yield_index', 0)) if pareto else sol\n        max_p_cand = max(pareto, key=lambda x: x.get('pollinator_abundance_index', 0)) if pareto else sol\n        \n        text = f'''\nCOMPARATIVA DE PAISAJE AGROECOLÓGICO:\n- LÍNEA BASE:\n  * Rendimiento agrícola: {yb}\n  * Abundancia de polinizadores: {pb}\n  * Nivel de pesticidas: {base.get('pesticide_level', 'N/A')}%\n  * Área natural: {base.get('natural_area_pct', 'N/A')}%\n\n- SOLUCIÓN ÓPTIMA RECOMENDADA (SELECCIONADA):\n  * Rendimiento proyectado: {yo} (Delta: {delta_y:+})\n  * Abundancia de polinizadores: {po} (Delta: {delta_p_pct:+} %)\n  * Distribución del suelo: {sol.get('crop_area_pct', 0)}% cultivo, {sol.get('natural_area_pct', 0)}% natural, {sol.get('floral_strips_pct', 0)}% franjas florales\n  * Nivel pesticidas: {sol.get('pesticide_level', 0)}%\n  * Salud del suelo: {sol.get('soil_management_score', 0)}\n\n- EXTREMOS DEL FRENTE DE PARETO DISPONIBLES:\n  * Alternativa Max Rendimiento: Rendimiento {max_y_cand.get('crop_yield_index', 0)}, pero Polinizadores bajan a {max_y_cand.get('pollinator_abundance_index', 0)}\n  * Alternativa Max Polinizadores: Polinizadores suben a {max_p_cand.get('pollinator_abundance_index', 0)}, pero Rendimiento cae a {max_p_cand.get('crop_yield_index', 0)}\n'''\n        return text\n",
+            "outputs": [
+              {
+                "name": "resumen_comparativo",
+                "display_name": "Resumen Estructurado",
+                "type": "str"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": "node_prompt_template",
+        "type": "genericNode",
+        "position": { "x": 750, "y": 200 },
+        "data": {
+          "type": "PromptComponent",
+          "node": {
+            "name": "PromptTemplate",
+            "display_name": "3. Plantilla de Prompt Agroecológico",
+            "description": "Instruye al LLM sobre cómo analizar los trade-offs y emitir la recomendación agronómica.",
+            "template": {
+              "template": {
+                "type": "str",
+                "value": "Eres el Asistente Experto en Recomendaciones Agroecológicas del Gemelo Digital de Paisajes Agrícolas.\n\nAnaliza la siguiente comparativa de optimización multiobjetivo (Frente de Pareto generado por NSGA-II):\n\n{resumen_comparativo}\n\nTu tarea es explicar de forma concisa y fundamentada:\n1. MOTIVO DEL COMPROMISO (TRADE-OFF): Explica por qué la configuración recomendada es superior a los extremos del frente de Pareto (comparándola explícitamente con la alternativa que maximiza rendimiento a costa de la biodiversidad y la que maximiza polinizadores a costa del cultivo).\n2. VARIABLES CLAVE DE DECISIÓN: Indica cuáles variables tuvieron mayor impacto agronómico (ej. reducción de pesticidas de X% a Y%, establecimiento de franjas florales al Z%). Cita cifras reales numéricas exactas.\n3. RECOMENDACIÓN OPERATIVA EN CAMPO: Proporciona 1 o 2 acciones prácticas inmediatas para el agricultor/gestor de la parcela.\n\nREGLAS ESTRICTAS:\n- Cita cifras reales exactas del resumen provisto.\n- Redacta en español, tono profesional y directo (máximo 3 párrafos compactos).\n- No uses frases genéricas como 'es el mejor compromiso'; explica matemáticamente y biológicamente por qué."
+              }
+            },
+            "outputs": [
+              {
+                "name": "prompt",
+                "display_name": "Prompt Compilado",
+                "type": "str"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": "node_groq_llm",
+        "type": "genericNode",
+        "position": { "x": 1100, "y": 200 },
+        "data": {
+          "type": "GroqModel",
+          "node": {
+            "name": "GroqModel",
+            "display_name": "4. Modelo LLM Groq",
+            "description": "Genera la recomendación agroecológica usando Llama 3.1 70B vía Groq.",
+            "template": {
+              "model_name": {
+                "type": "str",
+                "value": "llama-3.1-70b-versatile"
+              },
+              "temperature": {
+                "type": "float",
+                "value": 0.25
+              },
+              "max_tokens": {
+                "type": "int",
+                "value": 600
+              }
+            },
+            "outputs": [
+              {
+                "name": "text_response",
+                "display_name": "Texto Generado",
+                "type": "str"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": "node_output",
+        "type": "genericNode",
+        "position": { "x": 1450, "y": 200 },
+        "data": {
+          "type": "ChatOutput",
+          "node": {
+            "name": "RecomendacionOutput",
+            "display_name": "5. Salida de Recomendación",
+            "description": "Emite el texto final de la recomendación para el panel de optimización.",
+            "template": {},
+            "outputs": [
+              {
+                "name": "recomendacion_final",
+                "display_name": "Recomendación Agroecológica",
+                "type": "str"
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "edges": [
+      {
+        "source": "node_input_data",
+        "sourceHandle": "raw_data",
+        "target": "node_formatter",
+        "targetHandle": "raw_data"
+      },
+      {
+        "source": "node_formatter",
+        "sourceHandle": "resumen_comparativo",
+        "target": "node_prompt_template",
+        "targetHandle": "resumen_comparativo"
+      },
+      {
+        "source": "node_prompt_template",
+        "sourceHandle": "prompt",
+        "target": "node_groq_llm",
+        "targetHandle": "prompt"
+      },
+      {
+        "source": "node_groq_llm",
+        "sourceHandle": "text_response",
+        "target": "node_output",
+        "targetHandle": "recomendacion_final"
+      }
+    ]
+  }
+}
