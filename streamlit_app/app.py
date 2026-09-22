@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pandas as pd
@@ -446,18 +447,35 @@ def render_training_tab() -> None:
     active_label = st.session_state.get("data_source_label") or f"Dataset activo ({len(dataset)} filas)"
     st.info(f"🎯 **Dataset activo para entrenamiento:** {active_label} ({len(dataset)} registros)", icon="📊")
     
-    k_folds = st.slider("Número de Folds (K-Fold CV)", min_value=3, max_value=10, value=5, help="Define el número de particiones para la validación cruzada.")
+    c_train1, c_train2 = st.columns([1, 1], gap="medium")
+    with c_train1:
+        k_folds = st.slider("Número de Folds (K-Fold CV)", min_value=3, max_value=10, value=5, help="Define el número de particiones para la validación cruzada.")
+    with c_train2:
+        st.markdown("<div style='height: 4px'></div>", unsafe_allow_html=True)
+        tune_hyperparams = st.toggle(
+            "🎛️ Activar sintonización de hiperparámetros (tuning)",
+            value=False,
+            help="Ejecuta RandomizedSearchCV (Random Forest, XGBoost, Ridge) y exploración de arquitectura (DNN, Autoencoder) antes de evaluar con CV. Toma más tiempo de cómputo.",
+        )
+        if tune_hyperparams:
+            st.caption("⚡ *Modo tuning activo: los mejores hiperparámetros alimentarán el entrenamiento final.*")
     
     if st.button("Entrenar y comparar modelos", use_container_width=True):
         progress_bar = st.progress(0)
         status_text = st.empty()
         
-        with st.spinner(f"Entrenando modelos con {k_folds} folds... esto puede tardar un momento"):
+        spinner_msg = (
+            f"Sintonizando hiperparámetros y entrenando con {k_folds} folds... esto puede tardar unos instantes"
+            if tune_hyperparams
+            else f"Entrenando modelos con {k_folds} folds... esto puede tardar un momento"
+        )
+        with st.spinner(spinner_msg):
             t_res = train_and_evaluate_all_models(
                 dataframe=dataset,
                 progress_bar=progress_bar,
                 status_text=status_text,
-                k_folds=k_folds
+                k_folds=k_folds,
+                tune_hyperparameters=tune_hyperparams,
             )
             t_res["data_source_type"] = st.session_state.get("data_source_type", "sintetico")
             t_res["data_source_label"] = st.session_state.get("data_source_label", active_label)
@@ -473,8 +491,19 @@ def render_training_tab() -> None:
     if training_result:
         results_df = training_result["results_df"]
         best_overall = training_result["best_overall"]
+        ht_info = training_result.get("hyperparameter_tuning") or {}
         
         st.success(f"Entrenamiento completado. Mejor modelo: {best_overall}")
+        
+        # 0. Tabla de Mejores Hiperparámetros Encontrados (si se activó tuning)
+        if ht_info.get("activado") and ht_info.get("tuning_df") is not None:
+            st.markdown("### 🏆 Mejores Hiperparámetros Encontrados")
+            st.dataframe(ht_info["tuning_df"], use_container_width=True, hide_index=True)
+            
+            with st.container(border=True):
+                st.markdown("##### 🧠 Interpretación y Explicabilidad del Tuning")
+                st.markdown(ht_info.get("interpretacion", ""))
+                st.caption(f"⏱️ Tiempo invertido en sintonización: **{ht_info.get('tiempo_total_tuning', 0.0)} segundos**.")
         
         # 1. Registro de modelos
         st.markdown("### Registro de modelos")
@@ -824,6 +853,12 @@ def render_export_tab() -> None:
 
                 meta_dict["enrich_with_abm"] = source_details.get("enrich_with_abm", True)
                 meta_dict["data_source_details"] = source_details
+                ht_meta = training_result.get("hyperparameter_tuning") or {}
+                meta_dict["hyperparameter_tuning"] = {
+                    "activado": bool(ht_meta.get("activado", False)),
+                    "mejores_params_por_modelo": ht_meta.get("mejores_params_por_modelo"),
+                    "tiempo_total_tuning_segundos": ht_meta.get("tiempo_total_tuning", 0.0),
+                }
 
                 metadata_path.write_text(json.dumps(meta_dict, indent=2, ensure_ascii=False), encoding="utf-8")
                 export_res["metadata"] = meta_dict

@@ -13,6 +13,12 @@ import xgboost as xgb
 
 from data_pipeline import FEATURE_COLUMNS, TARGET_COLUMNS
 from training import build_surrogate_model
+from hyperparameter_tuning import (
+    DEFAULT_HYPERPARAMS,
+    tune_all_hyperparameters,
+    build_custom_dnn_surrogate,
+    build_custom_autoencoder_mlp,
+)
 
 def build_autoencoder_mlp_model(input_dim: int, normalization_layer: keras.layers.Layer) -> keras.Model:
     inputs = keras.Input(shape=(input_dim,), name="landscape_features")
@@ -46,19 +52,64 @@ def evaluate_preds(y_true, y_pred):
         }
     return metrics
 
-def train_and_evaluate_all_models(dataframe: pd.DataFrame, progress_bar, status_text, random_state=42, k_folds=5):
+def train_and_evaluate_all_models(
+    dataframe: pd.DataFrame,
+    progress_bar,
+    status_text,
+    random_state=42,
+    k_folds=5,
+    tune_hyperparameters: bool = False,
+):
     X = dataframe[FEATURE_COLUMNS].to_numpy(dtype=np.float32)
     y = dataframe[TARGET_COLUMNS].to_numpy(dtype=np.float32)
     
     scaler = StandardScaler()
     y_scaled = scaler.fit_transform(y)
     
+    tuning_res = None
+    if tune_hyperparameters:
+        if status_text:
+            status_text.text("🎛️ Sintonizando hiperparámetros óptimos para cada modelo...")
+        tuning_res = tune_all_hyperparameters(
+            X=X,
+            y=y,
+            y_scaled=y_scaled,
+            k_folds=k_folds,
+            random_state=random_state,
+            status_callback=lambda msg: status_text.text(msg) if status_text else None,
+        )
+        active_hyperparams = tuning_res["best_params_per_model"]
+    else:
+        active_hyperparams = DEFAULT_HYPERPARAMS
+
+    rf_cfg = active_hyperparams["Random Forest (Tradicional)"]
+    xgb_cfg = active_hyperparams["XGBoost (Tradicional)"]
+    ridge_cfg = active_hyperparams["Ridge Regression (Tradicional)"]
+    dnn_cfg = active_hyperparams["DNN Surrogate (Híbrido)"]
+    ae_cfg = active_hyperparams["Autoencoder+MLP (Híbrido)"]
+
     models_config = {
-        "Random Forest (Tradicional)": MultiOutputRegressor(RandomForestRegressor(n_estimators=100, random_state=random_state)),
-        "XGBoost (Tradicional)": MultiOutputRegressor(xgb.XGBRegressor(n_estimators=100, random_state=random_state)),
-        "Ridge Regression (Tradicional)": MultiOutputRegressor(Ridge(alpha=1.0)),
+        "Random Forest (Tradicional)": MultiOutputRegressor(
+            RandomForestRegressor(
+                n_estimators=rf_cfg["n_estimators"],
+                max_depth=rf_cfg["max_depth"],
+                min_samples_split=rf_cfg["min_samples_split"],
+                random_state=random_state,
+            )
+        ),
+        "XGBoost (Tradicional)": MultiOutputRegressor(
+            xgb.XGBRegressor(
+                n_estimators=xgb_cfg["n_estimators"],
+                max_depth=xgb_cfg["max_depth"],
+                learning_rate=xgb_cfg["learning_rate"],
+                random_state=random_state,
+            )
+        ),
+        "Ridge Regression (Tradicional)": MultiOutputRegressor(
+            Ridge(alpha=ridge_cfg["alpha"])
+        ),
         "DNN Surrogate (Híbrido)": "dnn",
-        "Autoencoder+MLP (Híbrido)": "autoencoder"
+        "Autoencoder+MLP (Híbrido)": "autoencoder",
     }
     
     from sklearn.model_selection import KFold
@@ -73,7 +124,7 @@ def train_and_evaluate_all_models(dataframe: pd.DataFrame, progress_bar, status_
     best_keras_r2 = -float('inf')
     
     for model_name, model_def in models_config.items():
-        status_text.text(f"Evaluando: {model_name} (Cross-Validation 3-Folds)...")
+        status_text.text(f"Evaluando: {model_name} (Cross-Validation {k_folds}-Folds)...")
         
         fold_maes = []
         fold_rmses = []
@@ -102,9 +153,24 @@ def train_and_evaluate_all_models(dataframe: pd.DataFrame, progress_bar, status_
                 normalization.adapt(X_train)
                 
                 if model_def == "dnn":
-                    model = build_surrogate_model(X.shape[1], normalization)
+                    model = build_custom_dnn_surrogate(
+                        input_dim=X.shape[1],
+                        normalization_layer=normalization,
+                        hidden_units=dnn_cfg.get("hidden_units", [64, 64, 32]),
+                        learning_rate=dnn_cfg.get("learning_rate", 0.0015),
+                        dropout_rate=dnn_cfg.get("dropout_rate", 0.12),
+                        target_dim=y.shape[1],
+                    )
                 else:
-                    model = build_autoencoder_mlp_model(X.shape[1], normalization)
+                    model = build_custom_autoencoder_mlp(
+                        input_dim=X.shape[1],
+                        normalization_layer=normalization,
+                        latent_dim=ae_cfg.get("latent_dim", 16),
+                        regressor_units=ae_cfg.get("regressor_units", 64),
+                        learning_rate=ae_cfg.get("learning_rate", 0.0010),
+                        dropout_rate=ae_cfg.get("dropout_rate", 0.10),
+                        target_dim=y.shape[1],
+                    )
                     
                 early_stopping = keras.callbacks.EarlyStopping(monitor="val_loss", patience=5, restore_best_weights=True)
                 model.fit(X_train, y_train, validation_data=(X_val, y_val), epochs=30, batch_size=24, verbose=0, callbacks=[early_stopping])
@@ -194,5 +260,13 @@ def train_and_evaluate_all_models(dataframe: pd.DataFrame, progress_bar, status_
         "dataset_summary": dataset_summary,
         "best_keras_model": best_keras_model,
         "target_scaler": scaler,
-        "best_overall": results_df.iloc[0]["Modelo"]
+        "best_overall": results_df.iloc[0]["Modelo"],
+        "hyperparameter_tuning": {
+            "activado": tune_hyperparameters,
+            "mejores_params_por_modelo": active_hyperparams if tune_hyperparameters else None,
+            "tuning_df": tuning_res["tuning_df"] if tuning_res else None,
+            "summary_df": tuning_res["summary_df"] if tuning_res else None,
+            "interpretacion": tuning_res["interpretation"] if tuning_res else None,
+            "tiempo_total_tuning": round(tuning_res["total_tuning_time"], 2) if tuning_res else 0.0,
+        },
     }
