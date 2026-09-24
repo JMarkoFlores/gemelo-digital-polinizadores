@@ -134,13 +134,14 @@ def render_robust_tests_tab() -> None:
         "D de Cohen": "{:.4f}"
     }
     
+    st.markdown("##### 📋 Pruebas Estadísticas Pareadas (T7)")
     st.dataframe(df_tests.style.format(format_dict, na_rep="- (Ref)"), use_container_width=True)
     
     nota_metodologica = "Nota metodológica: estas pruebas asumen independencia entre observaciones; al proceder de validación cruzada, dicha independencia es parcial, lo que puede subestimar la varianza real de los errores (Dietterich, 1998; Nadeau & Bengio, 2003). Los resultados deben interpretarse como una referencia complementaria al Test de Friedman/Nemenyi, que sí opera correctamente a nivel de fold."
     st.caption(f"*{nota_metodologica}*")
     st.session_state["nota_metodologica_b1"] = nota_metodologica
     
-    # Interpretación en lenguaje simple (Bloque 1)
+    # Interpretación y Explicabilidad (Análisis sobre T7)
     interpretations_b1 = []
     significant_against_baseline = []
     for row in table_data:
@@ -170,14 +171,16 @@ def render_robust_tests_tab() -> None:
         interpretations_b1.append(f"**{m}**: {diff_text} frente al modelo baseline (p={active_p:.4f}), efecto {efecto} (D={d_val:.2f}).")
     
     any_significant = len(significant_against_baseline) > 0
-    if not any_significant:
-        interpretations_b1.append("**Conclusión:** Ningún modelo mostró una diferencia estadísticamente significativa frente al modelo baseline.")
-    else:
-        interpretations_b1.append("**Conclusión:** Se encontraron diferencias estadísticamente significativas frente al modelo baseline.")
-        
-    text_b1 = " ".join(interpretations_b1)
-    st.info(text_b1)
-    st.session_state["interpretacion_b1"] = text_b1
+    with st.container(border=True):
+        st.markdown("##### 🔬 Análisis de Comparaciones Pareadas (sobre T7)")
+        interp_pareadas = (
+            f"Ningún modelo competidor presenta una diferencia de error estadísticamente significativa frente al modelo baseline ({best_model_name})."
+            if not any_significant else
+            f"El modelo baseline ({best_model_name}) presenta diferencias estadísticamente significativas frente a modelos competidores."
+        )
+        explic_pareadas = " ".join(interpretations_b1) + f" (Umbral de significancia corregido por Bonferroni: $\\alpha_{{adj}} = {alpha_bonf:.4f}$)."
+        st.markdown(f"**🔍 Interpretación:** {interp_pareadas}\n\n**📖 Explicación:** {explic_pareadas}")
+    st.session_state["interpretacion_b1"] = f"{interp_pareadas} {explic_pareadas}"
     
     st.markdown("#### Resultado Final Global")
     try:
@@ -227,54 +230,135 @@ def render_robust_tests_tab() -> None:
                     f"(**{best_model_name}**), ya que {razon}."
                 )
 
-        st.info(
-            f"**Test de Friedman (Global):** Estadístico = {stat_f:.2f}, **p-valor = {p_val_f:.4e}**\n\n"
-            f"El test de Friedman evalúa si existe al menos una diferencia significativa entre todos los modelos evaluados simultáneamente.\n\n"
-            f"**Conclusión práctica:** {friedman_conclusion}"
+        # -------------------------------------------------------------
+        # T8 & F9: Rangos Promedio por Modelo (Test de Friedman)
+        # -------------------------------------------------------------
+        data_folds = np.array(all_fold_maes).T
+        ranks_matrix = np.array([stats.rankdata(row) for row in data_folds])
+        avg_ranks = np.mean(ranks_matrix, axis=0)
+
+        df_friedman_ranks = pd.DataFrame({
+            "Modelo": model_names,
+            "Rango Promedio": avg_ranks
+        })
+        df_friedman_ranks = df_friedman_ranks.sort_values(by="Rango Promedio").reset_index(drop=True)
+        df_friedman_ranks["Posición"] = [f"#{i+1}" for i in range(len(df_friedman_ranks))]
+        df_friedman_ranks = df_friedman_ranks[["Modelo", "Rango Promedio", "Posición"]]
+
+        st.markdown("##### 📋 Tabla de Rangos Promedio por Modelo (Test de Friedman) (T8)")
+        st.dataframe(df_friedman_ranks.style.format({"Rango Promedio": "{:.2f}"}), use_container_width=True, hide_index=True)
+
+        fig_friedman = px.bar(
+            df_friedman_ranks,
+            x="Modelo",
+            y="Rango Promedio",
+            color="Rango Promedio",
+            color_continuous_scale="Blues_r",
+            text="Rango Promedio",
+            title="Rangos Promedio de Error por Modelo (Test de Friedman) (F9)",
+            template="plotly_dark",
+            labels={"Rango Promedio": "Rango Promedio (menor = mejor)", "Modelo": "Modelo de IA"}
         )
-        st.session_state["interpretacion_friedman"] = friedman_conclusion
+        fig_friedman.update_traces(texttemplate="%{text:.2f}", textposition="outside")
+        fig_friedman.update_layout(height=380, margin=dict(l=0, r=0, t=40, b=0), yaxis=dict(range=[0, len(model_names) + 0.5]))
+        st.plotly_chart(fig_friedman, use_container_width=True)
+
+        with st.container(border=True):
+            st.markdown("##### 🌐 Análisis de Varianza Global (Test de Friedman)")
+            interp_friedman = (
+                "El conjunto de modelos exhibe un rendimiento global estadísticamente equivalente sin divergencias significativas."
+                if p_val_f >= 0.05 else
+                "Se detectó heterogeneidad estadística global significativa entre las arquitecturas evaluadas."
+            )
+            explic_friedman = (
+                f"El Test de Friedman sobre los errores por fold arroja un estadístico $\\chi^2_F = {stat_f:.2f}$ con **p-valor = {p_val_f:.4e}** (umbral $\\alpha = 0.05$). "
+                f"Evalúa simultáneamente si las funciones de distribución de error de los {len(model_names)} modelos difieren entre sí. {friedman_conclusion}"
+            )
+            st.markdown(f"**🔍 Interpretación:** {interp_friedman}\n\n**📖 Explicación:** {explic_friedman}")
+        st.session_state["interpretacion_friedman"] = f"{interp_friedman} {explic_friedman}"
         
-        # Nemenyi Post-hoc
+        # Análisis Post-hoc (Nemenyi)
         st.markdown("### Comparación Post-Hoc (Nemenyi)")
         if p_val_f < 0.05:
-            
             if not significant_pairs:
-                interpretation = (
-                    f"El par de modelos con la mayor diferencia (p-valor más bajo) es **{min_pair[0]}** vs **{min_pair[1]}** (p={min_pval:.4f}), pero NO cruza el umbral de significancia (p < 0.05).\n\n"
-                    f"**Conclusión práctica:** Ningún par de modelos mostró una diferencia estadísticamente significativa de forma aislada, aunque el Test de Friedman detectó heterogeneidad en el conjunto. Esto es normal cuando las diferencias entre modelos son pequeñas y el test post-hoc es conservador."
+                interp_nemenyi = "Ningún par de modelos muestra diferencias estadísticamente significativas individuales bajo la prueba conservadora de Nemenyi."
+                explic_nemenyi = (
+                    f"El par de modelos con la mayor diferencia (p-valor más bajo) es **{min_pair[0]}** vs **{min_pair[1]}** (p={min_pval:.4f}), pero no cruza el umbral de significancia (p < 0.05). "
+                    f"Aunque el Test de Friedman detectó heterogeneidad en el conjunto, el control de comparaciones múltiples de Nemenyi confirma que las diferencias entre pares aislados son pequeñas."
                 )
             else:
                 r2_m1 = results_df[results_df["Modelo"] == min_pair[0]].iloc[0]["CV_R2_Mean"]
                 r2_m2 = results_df[results_df["Modelo"] == min_pair[1]].iloc[0]["CV_R2_Mean"]
                 mejor = min_pair[0] if r2_m1 > r2_m2 else min_pair[1]
-                
                 text_pairs = [f"**{p[0]}** vs **{p[1]}**" for p in significant_pairs]
-                interpretation = (
-                    f"El par de modelos con el p-valor más bajo es **{min_pair[0]}** vs **{min_pair[1]}** (p={min_pval:.4f}), el cual SÍ cruza el umbral de significancia. En este par, el modelo **{mejor}** tiene mejor rendimiento (mayor R²).\n\n"
-                    f"**Conclusión práctica:** Se encontraron diferencias significativas en los siguientes pares: {', '.join(text_pairs)}."
+                interp_nemenyi = f"Se encontraron diferencias estadísticas significativas por pares, con superioridad de **{mejor}** en el contraste principal."
+                explic_nemenyi = (
+                    f"El par con menor p-valor es **{min_pair[0]}** vs **{min_pair[1]}** (p={min_pval:.4f}, p < 0.05), donde **{mejor}** presenta mayor $R^2$. "
+                    f"Pares con diferencias significativas confirmadas: {', '.join(text_pairs)}."
                 )
             
-            st.info(interpretation)
-            
-            # Render Heatmap
+            # Tabla T9 (caso con significancia: Matriz de p-valores Post-Hoc Nemenyi)
+            st.markdown("##### 📋 Matriz de p-valores Post-Hoc de Nemenyi (T9)")
+            st.dataframe(nemenyi_pvals.style.format("{:.4f}"), use_container_width=True)
+
+            # Render Heatmap (F8)
             fig_nemenyi = px.imshow(
                 nemenyi_pvals,
                 text_auto=".3f",
                 color_continuous_scale="RdBu_r",
-                title="Matriz de p-valores (Test de Nemenyi)",
+                title="Matriz de p-valores (Test de Nemenyi) (F8)",
                 template="plotly_dark",
                 labels=dict(color="p-valor")
             )
             fig_nemenyi.update_layout(height=500, margin=dict(l=0, r=0, t=40, b=0))
             st.plotly_chart(fig_nemenyi, use_container_width=True)
+
+            with st.container(border=True):
+                st.markdown("##### 📊 Análisis Post-Hoc (Test de Nemenyi)")
+                st.markdown(f"**🔍 Interpretación:** {interp_nemenyi}\n\n**📖 Explicación:** {explic_nemenyi}")
             
             # Cache for export
             st.session_state["nemenyi_results"] = {
                 "matrix": nemenyi_pvals,
-                "text": interpretation
+                "text": f"{interp_nemenyi} {explic_nemenyi}"
             }
         else:
-            st.info("No se requiere post-hoc: Friedman no detectó diferencias globales significativas.")
+            # Tabla T9 (caso sin significancia global: Evidencia empírica de no requerir post-hoc)
+            t9_rows = []
+            for row in table_data:
+                m = row["Modelo de IA"]
+                if m == best_model_name:
+                    continue
+                d_val = row["D de Cohen"]
+                d_abs = abs(d_val) if not np.isnan(d_val) else 0.0
+                if d_abs < 0.2:
+                    efecto = "Trivial (|D| < 0.2)"
+                elif d_abs < 0.5:
+                    efecto = "Pequeño (0.2 ≤ |D| < 0.5)"
+                elif d_abs < 0.8:
+                    efecto = "Mediano (0.5 ≤ |D| < 0.8)"
+                else:
+                    efecto = "Grande (|D| ≥ 0.8)"
+                    
+                p_active = row["T-Student Apareado (p-valor)"] if row["Shapiro-Wilk (p-valor)"] > 0.05 else row["Wilcoxon (p-valor)"]
+                es_signif = "Sí (p < α_adj)" if p_active < alpha_bonf else "No (p ≥ α_adj)"
+                
+                t9_rows.append({
+                    "Modelo": m,
+                    "D de Cohen vs. Baseline": d_val,
+                    "Magnitud de Efecto": efecto,
+                    "¿Significativo?": es_signif
+                })
+            df_t9 = pd.DataFrame(t9_rows)
+            
+            st.markdown("##### 📋 Magnitud de Efecto y Significancia vs. Baseline (Filtro Post-Hoc) (T9)")
+            st.dataframe(df_t9.style.format({"D de Cohen vs. Baseline": "{:+.4f}"}), use_container_width=True, hide_index=True)
+
+            with st.container(border=True):
+                st.markdown("##### 📊 Análisis Post-Hoc (Test de Nemenyi)")
+                interp_nemenyi = "No se requiere análisis post-hoc al no detectarse diferencias globales significativas en el test de Friedman."
+                explic_nemenyi = f"Dado que el test ómnibus de Friedman no rechazó la hipótesis nula ($p = {p_val_f:.4e} \\ge 0.05$), se asume paridad estadística entre los {len(model_names)} modelos evaluados, descartando comparaciones múltiples redundantes."
+                st.markdown(f"**🔍 Interpretación:** {interp_nemenyi}\n\n**📖 Explicación:** {explic_nemenyi}")
             st.session_state["nemenyi_results"] = None
 
     except ModuleNotFoundError as e:
@@ -327,13 +411,12 @@ def render_robust_tests_tab() -> None:
         soporte = f"es estadísticamente similar a los demás modelos evaluados{extra_desc}, a pesar de tener un mejor rendimiento nominal."
         recomendacion = f"Se recomienda usar el modelo ganador (**{best_model_name}**) por su mejor R² y menor error, aunque en la práctica su rendimiento es estadísticamente equivalente a las alternativas."
         
-    veredicto_text = (
-        f"**Modelo ganador:** {best_model_name}\n\n"
-        f"**Soporte estadístico:** El modelo {soporte}\n\n"
-        f"**Recomendación:** {recomendacion}"
-    )
-    st.success(veredicto_text)
-    st.session_state["veredicto_final"] = veredicto_text
+    with st.container(border=True):
+        st.markdown("##### 🏆 Veredicto Final de Selección del Modelo")
+        interp_veredicto = f"Se ratifica a **{best_model_name}** como el modelo óptimo seleccionado para la plataforma de gemelo digital."
+        explic_veredicto = f"El modelo {soporte} **Recomendación:** {recomendacion}"
+        st.markdown(f"**🔍 Interpretación:** {interp_veredicto}\n\n**📖 Explicación:** {explic_veredicto}")
+    st.session_state["veredicto_final"] = f"{interp_veredicto} {explic_veredicto}"
 
     st.markdown("---")
     k_folds_num = len(all_fold_maes[0]) if len(all_fold_maes) > 0 else "K"
