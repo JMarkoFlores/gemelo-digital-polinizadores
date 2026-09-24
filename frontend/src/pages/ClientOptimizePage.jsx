@@ -15,6 +15,57 @@ function bboxFromGeometry(geometry) {
   return [Math.min(...lons), Math.min(...lats), Math.max(...lons), Math.max(...lats)]
 }
 
+function checkGeographicValidity(geom, bounds, regName) {
+  if (!geom) {
+    return { isValid: true, hasRestriction: !!bounds, distanceKm: null, maxAllowedKm: null, message: null }
+  }
+  if (!bounds || typeof bounds.lat !== 'number' || typeof bounds.lon !== 'number' || typeof bounds.radius_km !== 'number') {
+    // Modelo sintético o sin metadatos de coordenadas: sin restricción geográfica
+    return { isValid: true, hasRestriction: false, distanceKm: null, maxAllowedKm: null, message: null }
+  }
+
+  const coords = geom?.coordinates?.[0] || []
+  if (!coords.length) {
+    return { isValid: true, hasRestriction: true, distanceKm: null, maxAllowedKm: bounds.radius_km * 1.2, message: null }
+  }
+
+  let sumLon = 0, sumLat = 0
+  for (const [lon, lat] of coords) {
+    sumLon += lon
+    sumLat += lat
+  }
+  const centroidLat = sumLat / coords.length
+  const centroidLon = sumLon / coords.length
+
+  // Distancia Haversine en kilómetros
+  const R = 6371.0
+  const dLat = ((centroidLat - bounds.lat) * Math.PI) / 180
+  const dLon = ((centroidLon - bounds.lon) * Math.PI) / 180
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((bounds.lat * Math.PI) / 180) *
+      Math.cos((centroidLat * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2)
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+  const distanceKm = Math.round(R * c * 10) / 10
+  const maxAllowedKm = Math.round(bounds.radius_km * 1.2 * 10) / 10
+
+  const isValid = distanceKm <= maxAllowedKm
+  const message = isValid
+    ? null
+    : `⚠️ Esta área está fuera de la región para la que el modelo activo fue entrenado y validado (${regName || 'Región calibrada'}). Distancia observada: ${distanceKm} km (radio máximo permitido con tolerancia: ${maxAllowedKm} km). Los resultados no serían científicamente válidos. Entrena y activa un modelo para tu región en Streamlit antes de continuar.`
+
+  return {
+    isValid,
+    hasRestriction: true,
+    distanceKm,
+    maxAllowedKm,
+    centroid: { lat: centroidLat, lon: centroidLon },
+    message,
+  }
+}
+
 export default function ClientOptimizePage() {
   const { t } = useTranslation()
   const [geometry, setGeometry] = useState(null)
@@ -27,6 +78,9 @@ export default function ClientOptimizePage() {
   const [reloading, setReloading] = useState(false)
   const [modelName, setModelName] = useState('')
   const [modelVersion, setModelVersion] = useState('')
+  const [regionName, setRegionName] = useState(null)
+  const [regionBounds, setRegionBounds] = useState(null)
+  const [fuenteDatos, setFuenteDatos] = useState(null)
 
   const checkModelStatus = () => {
     return api.get('/api/model/status')
@@ -35,6 +89,9 @@ export default function ClientOptimizePage() {
         setModelName(res.data.model_name ?? '')
         setModelStatus(res.data.model_status ?? '')
         setModelVersion(res.data.model_version ?? res.data.version ?? '')
+        setRegionName(res.data.region_name ?? null)
+        setRegionBounds(res.data.region_bounds ?? null)
+        setFuenteDatos(res.data.fuente_datos ?? null)
       })
       .catch(() => {
         setModelReady(false)
@@ -58,6 +115,9 @@ export default function ClientOptimizePage() {
       const res = await api.post('/api/model/reload')
       setModelReady(res.data.model_ready)
       setModelStatus(res.data.model_status ?? '')
+      setRegionName(res.data.region_name ?? null)
+      setRegionBounds(res.data.region_bounds ?? null)
+      setFuenteDatos(res.data.fuente_datos ?? null)
     } catch {
       await checkModelStatus()
     } finally {
@@ -65,11 +125,24 @@ export default function ClientOptimizePage() {
     }
   }
 
-  const payload = useMemo(() => ({ geometry, bbox: geometry ? bboxFromGeometry(geometry) : null, ...scenario }), [geometry, scenario])
+  // Validación de alcance geográfico (Domain Shift)
+  const geoValidation = useMemo(
+    () => checkGeographicValidity(geometry, regionBounds, regionName),
+    [geometry, regionBounds, regionName]
+  )
+
+  const payload = useMemo(
+    () => ({ geometry, bbox: geometry ? bboxFromGeometry(geometry) : null, ...scenario }),
+    [geometry, scenario]
+  )
 
   const runSimulation = async () => {
     if (!geometry) {
       setError(t('clientOpt_errorNoGeom'))
+      return
+    }
+    if (!geoValidation.isValid) {
+      setError(geoValidation.message)
       return
     }
     setLoading(true)
@@ -155,11 +228,26 @@ export default function ClientOptimizePage() {
       )}
       {modelReady === true && (
         <StatusBanner tone="success">
-          <div className="flex items-center justify-between">
-            <span>
-              <strong>Modelo IA operativo:</strong> {modelName || modelStatus || 'Modelo subrogado listo para inferencia instantánea.'}
-              {modelVersion && ` (Versión: ${modelVersion})`}
-            </span>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <span>
+                <strong>Modelo IA operativo:</strong> {modelName || modelStatus || 'Modelo subrogado listo para inferencia.'}
+                {modelVersion && ` (${modelVersion})`}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              {regionBounds ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-sky-500/15 border border-sky-500/30 px-3 py-1 text-xs font-bold text-sky-800 dark:text-sky-300">
+                  <span className="h-1.5 w-1.5 rounded-full bg-sky-500" />
+                  📍 Calibrado: {regionName} (Radio: {regionBounds.radius_km} km)
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-purple-500/15 border border-purple-500/30 px-3 py-1 text-xs font-bold text-purple-800 dark:text-purple-300">
+                  <span className="h-1.5 w-1.5 rounded-full bg-purple-500" />
+                  🧪 Modelo Sintético (Sin restricción espacial)
+                </span>
+              )}
+            </div>
           </div>
         </StatusBanner>
       )}
@@ -168,7 +256,20 @@ export default function ClientOptimizePage() {
 
       {/* Step 1: Map Selection */}
       <Suspense fallback={<SpinnerBlock label={t('clientOpt_loadingMap')} />}>
-        <MapSelectionCard geometry={geometry} onGeometryChange={setGeometry} baseline={result?.baseline} />
+        <MapSelectionCard
+          geometry={geometry}
+          onGeometryChange={(newGeom) => {
+            setGeometry(newGeom)
+            if (error) setError('')
+          }}
+          baseline={result?.baseline}
+          regionBounds={regionBounds}
+          regionName={regionName}
+          isAreaValid={geoValidation.isValid}
+          validationDistanceKm={geoValidation.distanceKm}
+          validationMaxKm={geoValidation.maxAllowedKm}
+          validationMessage={geoValidation.message}
+        />
       </Suspense>
 
       {/* Step 2: Scenario Parameters */}
@@ -176,8 +277,12 @@ export default function ClientOptimizePage() {
         values={scenario}
         onChange={(key, value) => setScenario((prev) => ({ ...prev, [key]: value }))}
         onRun={runSimulation}
-        disabled={!geometry || !modelReady}
+        disabled={!geometry || !modelReady || !geoValidation.isValid}
         loading={loading}
+        isAreaValid={geoValidation.isValid}
+        validationMessage={geoValidation.message}
+        regionName={regionName}
+        hasRestriction={geoValidation.hasRestriction}
       />
 
       {/* Step 3: Optimization Results */}

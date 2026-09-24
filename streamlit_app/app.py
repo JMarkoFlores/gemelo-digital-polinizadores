@@ -935,10 +935,19 @@ def render_export_tab() -> None:
         st.markdown("### 🔍 Verificación de Origen y Trazabilidad del Modelo")
         if source_type == "publico_gbif_nasa_power":
             region_disp = source_details.get("region_name") or "Región no especificada"
+            coords = source_details.get("coordinates") or {}
+            rad_disp = coords.get("radius_km", 35.0)
             st.success(
                 f"🏷️ **Vas a exportar un modelo entrenado con:** `[Dataset Público Real: GBIF + NASA POWER, región {region_disp}]` "
                 f"({len(dataset)} registros)",
                 icon="🌐",
+            )
+            st.warning(
+                f"🛡️ **Restricción de Alcance Geográfico (Control de Domain Shift):** Este modelo quedará restringido "
+                f"en el cliente React exclusivamente a la región de **{region_disp}** (radio de validez científica: **{rad_disp} km**). "
+                "Cualquier intento de simulación o dibujo de polígonos fuera de esta área será bloqueado en el cliente para "
+                "preservar la validez científica y el rigor agroecológico del gemelo digital.",
+                icon="📍",
             )
             v_col1, v_col2, v_col3, v_col4 = st.columns(4)
             v_col1.metric("Registros entrenados", len(dataset))
@@ -956,6 +965,10 @@ def render_export_tab() -> None:
             st.info(
                 f"🏷️ **Vas a exportar un modelo entrenado con:** `[Dataset Sintético de {len(dataset)} filas]`",
                 icon="🧪",
+            )
+            st.caption(
+                "ℹ️ **Nota de alcance:** Al ser un modelo sintético sin anclaje geográfico real, el cliente React permitirá "
+                "simular en cualquier ubicación, señalando que opera bajo parámetros teóricos no calibrados regionalmente."
             )
 
     col1, col2 = st.columns([1, 1], gap="large")

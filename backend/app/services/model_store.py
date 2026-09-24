@@ -146,11 +146,101 @@ class ModelStore:
         return self.metadata.get("fuente_datos")
 
     @property
+    def region_name(self) -> str | None:
+        return self.metadata.get("region_name")
+
+    @property
+    def region_bounds(self) -> dict[str, float] | None:
+        """Coordenadas y radio de validez agroecológica para modelos entrenados con datos públicos reales."""
+        coords = self.metadata.get("coordinates")
+        if isinstance(coords, dict) and "lat" in coords and "lon" in coords and "radius_km" in coords:
+            try:
+                return {
+                    "lat": float(coords["lat"]),
+                    "lon": float(coords["lon"]),
+                    "radius_km": float(coords["radius_km"]),
+                }
+            except (TypeError, ValueError):
+                pass
+
+        details = self.metadata.get("data_source_details")
+        if isinstance(details, dict):
+            coords = details.get("coordinates")
+            if isinstance(coords, dict) and "lat" in coords and "lon" in coords and "radius_km" in coords:
+                try:
+                    return {
+                        "lat": float(coords["lat"]),
+                        "lon": float(coords["lon"]),
+                        "radius_km": float(coords["radius_km"]),
+                    }
+                except (TypeError, ValueError):
+                    pass
+        return None
+
+    def check_point_in_region(self, lat: float, lon: float, tolerance: float = 0.2) -> dict[str, Any]:
+        """Verifica si un punto o centroide (lat, lon) cae dentro del alcance geográfico válido del modelo activo."""
+        bounds = self.region_bounds
+        if not bounds:
+            return {
+                "has_restriction": False,
+                "is_valid": True,
+                "distance_km": None,
+                "allowed_radius_km": None,
+                "max_radius_with_tolerance_km": None,
+                "region_name": self.region_name,
+                "region_bounds": None,
+                "fuente_datos": self.fuente_datos,
+                "message": "Modelo sintético — no calibrado a una región geográfica real (sin restricción espacial).",
+            }
+
+        import math
+
+        r_earth_km = 6371.0
+        d_lat = math.radians(lat - bounds["lat"])
+        d_lon = math.radians(lon - bounds["lon"])
+        a = (
+            math.sin(d_lat / 2.0) ** 2
+            + math.cos(math.radians(bounds["lat"]))
+            * math.cos(math.radians(lat))
+            * math.sin(d_lon / 2.0) ** 2
+        )
+        c = 2.0 * math.atan2(math.sqrt(a), math.sqrt(1.0 - a))
+        distance_km = round(r_earth_km * c, 2)
+
+        allowed_radius_km = float(bounds["radius_km"])
+        max_radius_with_tolerance_km = round(allowed_radius_km * (1.0 + max(0.0, tolerance)), 2)
+        is_valid = distance_km <= max_radius_with_tolerance_km
+
+        region_name = self.region_name or "Región de entrenamiento"
+        if is_valid:
+            message = f"Punto dentro del área agroecológica válida de {region_name} ({distance_km} km del centroide)."
+        else:
+            message = (
+                f"⚠️ Esta área está fuera de la región para la que el modelo activo fue entrenado y validado "
+                f"({region_name}). Distancia observada: {distance_km} km (radio máximo permitido con tolerancia: {max_radius_with_tolerance_km} km). "
+                f"Los resultados no serían científicamente válidos. Entrena y activa un modelo para tu región en Streamlit antes de continuar."
+            )
+
+        return {
+            "has_restriction": True,
+            "is_valid": is_valid,
+            "distance_km": distance_km,
+            "allowed_radius_km": allowed_radius_km,
+            "max_radius_with_tolerance_km": max_radius_with_tolerance_km,
+            "region_name": region_name,
+            "region_bounds": bounds,
+            "fuente_datos": self.fuente_datos,
+            "message": message,
+        }
+
+    @property
     def data_source_summary(self) -> dict[str, Any]:
         return {
             "fuente_datos": self.metadata.get("fuente_datos"),
             "data_source_label": self.metadata.get("data_source_label"),
             "region_name": self.metadata.get("region_name"),
+            "region_bounds": self.region_bounds,
+            "coordinates": self.region_bounds,
             "n_samples": self.metadata.get("n_samples") or self.metadata.get("dataset_rows"),
             "gbif_occurrences": self.metadata.get("gbif_occurrences"),
             "distinct_species_count": self.metadata.get("distinct_species_count"),

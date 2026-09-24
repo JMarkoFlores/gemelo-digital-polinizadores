@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
-import { FeatureGroup, MapContainer, TileLayer, useMap } from 'react-leaflet'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Circle, FeatureGroup, MapContainer, TileLayer, Tooltip, useMap } from 'react-leaflet'
 import { useTranslation } from 'react-i18next'
 import 'leaflet-draw'
 import L from '../lib/leaflet'
@@ -8,14 +8,14 @@ import StatusBanner from './StatusBanner'
 
 // Workaround for Leaflet.draw bug: "type is not defined" inside readableArea in strict mode
 if (typeof window !== 'undefined') {
-  window.type = '';
+  window.type = ''
 }
 
 const PRESETS = [
   {
     id: 'viru',
-    name: 'Valle de Virú',
-    desc: 'La Libertad (Palto y Arándano)',
+    name: 'Valle de Virú (Trujillo)',
+    desc: 'La Libertad, Perú (Palto y Arándano)',
     center: [-8.095, -78.85],
     geometry: {
       type: 'Polygon',
@@ -33,7 +33,7 @@ const PRESETS = [
   {
     id: 'ica',
     name: 'Valle de Ica',
-    desc: 'Ica (Vid y Frutales)',
+    desc: 'Ica, Perú (Vid y Frutales)',
     center: [-14.075, -75.73],
     geometry: {
       type: 'Polygon',
@@ -49,6 +49,16 @@ const PRESETS = [
     },
   },
 ]
+
+function MapController({ center, zoom }) {
+  const map = useMap()
+  useEffect(() => {
+    if (center && center[0] !== undefined && center[1] !== undefined) {
+      map.setView(center, zoom || map.getZoom(), { animate: true })
+    }
+  }, [center, zoom, map])
+  return null
+}
 
 function DrawControl({ onChange, externalGeometry }) {
   const map = useMap()
@@ -145,11 +155,31 @@ function DrawControl({ onChange, externalGeometry }) {
   return <FeatureGroup />
 }
 
-export default function MapSelectionCard({ geometry, onGeometryChange, baseline }) {
+export default function MapSelectionCard({
+  geometry,
+  onGeometryChange,
+  baseline,
+  regionBounds = null,
+  regionName = null,
+  isAreaValid = true,
+  validationDistanceKm = null,
+  validationMaxKm = null,
+  validationMessage = null,
+}) {
   const { t } = useTranslation()
-  const [view, setView] = useState([-8.08, -78.85])
+  const initialCenter = regionBounds ? [regionBounds.lat, regionBounds.lon] : [-8.08, -78.85]
+  const [view, setView] = useState(initialCenter)
+  const [zoomLevel, setZoomLevel] = useState(regionBounds ? 10 : 11)
   const [showRawJson, setShowRawJson] = useState(false)
   const [copied, setCopied] = useState(false)
+
+  // Update view when regionBounds becomes available if no geometry exists yet
+  useEffect(() => {
+    if (regionBounds?.lat && regionBounds?.lon && !geometry && !baseline) {
+      setView([regionBounds.lat, regionBounds.lon])
+      setZoomLevel(10)
+    }
+  }, [regionBounds, geometry, baseline])
 
   useEffect(() => {
     if (baseline?.geometry?.coordinates?.[0]?.[0]) {
@@ -166,13 +196,39 @@ export default function MapSelectionCard({ geometry, onGeometryChange, baseline 
   }
 
   const coordinatesCount = (() => {
-    const coords = geometry?.coordinates?.[0];
-    if (!coords || coords.length === 0) return 0;
-    const first = coords[0];
-    const last = coords[coords.length - 1];
-    const isClosed = first[0] === last[0] && first[1] === last[1] && coords.length > 2;
-    return isClosed ? coords.length - 1 : coords.length;
-  })();
+    const coords = geometry?.coordinates?.[0]
+    if (!coords || coords.length === 0) return 0
+    const first = coords[0]
+    const last = coords[coords.length - 1]
+    const isClosed = first[0] === last[0] && first[1] === last[1] && coords.length > 2
+    return isClosed ? coords.length - 1 : coords.length
+  })()
+
+  // Preset dinámico que cae exactamente dentro del círculo válido del modelo activo
+  const activeRegionPreset = useMemo(() => {
+    if (!regionBounds) return null
+    const lat = regionBounds.lat
+    const lon = regionBounds.lon
+    const delta = 0.035
+    return {
+      id: 'active_region_preset',
+      name: `${regionName ? regionName.split('(')[0].trim() : 'Zona Calibrada'} (Válido)`,
+      desc: `Parcela de prueba calibrada para ${regionName || 'el modelo activo'}`,
+      center: [lat, lon],
+      geometry: {
+        type: 'Polygon',
+        coordinates: [
+          [
+            [Number((lon - delta).toFixed(4)), Number((lat - delta).toFixed(4))],
+            [Number((lon + delta).toFixed(4)), Number((lat - delta).toFixed(4))],
+            [Number((lon + delta).toFixed(4)), Number((lat + delta).toFixed(4))],
+            [Number((lon - delta).toFixed(4)), Number((lat + delta).toFixed(4))],
+            [Number((lon - delta).toFixed(4)), Number((lat - delta).toFixed(4))],
+          ],
+        ],
+      },
+    }
+  }, [regionBounds, regionName])
 
   return (
     <PanelCard
@@ -182,13 +238,20 @@ export default function MapSelectionCard({ geometry, onGeometryChange, baseline 
       actions={
         <div className="flex items-center gap-1.5">
           <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 mr-1 hidden sm:inline">
-            Detección:
+            Estado:
           </span>
           {geometry ? (
-            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-              {coordinatesCount} vértices delimitados
-            </span>
+            isAreaValid ? (
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                {coordinatesCount} vértices (Válido)
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 rounded-full bg-rose-500/10 px-2.5 py-1 text-xs font-bold text-rose-600 dark:text-rose-400 animate-pulse">
+                <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
+                {coordinatesCount} vértices (Fuera de zona)
+              </span>
+            )
           ) : (
             <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2.5 py-1 text-xs font-semibold text-amber-600 dark:text-amber-400">
               <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
@@ -202,16 +265,46 @@ export default function MapSelectionCard({ geometry, onGeometryChange, baseline 
         {/* Map column */}
         <div className="space-y-3">
           <div className="relative h-[420px] sm:h-[460px] overflow-hidden rounded-2xl border border-slate-200/90 shadow-sm dark:border-slate-800">
-            <MapContainer center={view} zoom={11} scrollWheelZoom className="z-0 h-full w-full">
+            <MapContainer center={view} zoom={zoomLevel} scrollWheelZoom className="z-0 h-full w-full">
+              <MapController center={view} zoom={zoomLevel} />
               <TileLayer
                 attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               />
+
+              {/* Zona de validez agroecológica del modelo activo */}
+              {regionBounds && (
+                <Circle
+                  center={[regionBounds.lat, regionBounds.lon]}
+                  radius={regionBounds.radius_km * 1000}
+                  pathOptions={{
+                    color: '#0284c7',
+                    fillColor: '#38bdf8',
+                    fillOpacity: 0.16,
+                    dashArray: '6, 6',
+                    weight: 2,
+                  }}
+                >
+                  <Tooltip direction="top" permanent={false} className="text-xs font-semibold">
+                    📍 Zona válida: {regionName || 'Región calibrada'} ({regionBounds.radius_km} km)
+                  </Tooltip>
+                </Circle>
+              )}
+
               <DrawControl onChange={onGeometryChange} externalGeometry={geometry} />
             </MapContainer>
 
-            {/* Drawing instruction floating badge */}
-            <div className="pointer-events-none absolute bottom-3 left-3 right-3 sm:right-auto z-[400]">
+            {/* Drawing instruction / Geographic scope floating badge */}
+            <div className="pointer-events-none absolute bottom-3 left-3 right-3 sm:right-auto z-[400] flex flex-col gap-1.5">
+              {regionBounds ? (
+                <div className="rounded-xl border border-sky-300/80 bg-white/95 px-3 py-1.5 text-xs font-medium text-sky-800 shadow-md backdrop-blur-md dark:border-sky-700/80 dark:bg-slate-900/95 dark:text-sky-200">
+                  📍 <strong>Zona válida del modelo:</strong> {regionName} (Círculo azul, radio {regionBounds.radius_km} km)
+                </div>
+              ) : (
+                <div className="rounded-xl border border-purple-300/80 bg-white/95 px-3 py-1.5 text-xs font-medium text-purple-800 shadow-md backdrop-blur-md dark:border-purple-700/80 dark:bg-slate-900/95 dark:text-purple-200">
+                  🧪 <strong>Modelo sintético:</strong> Puedes delimitar en cualquier ubicación geográfica
+                </div>
+              )}
               <div className="rounded-xl border border-slate-200/80 bg-white/95 px-3 py-1.5 text-xs font-medium text-slate-700 shadow-md backdrop-blur-md dark:border-slate-700/80 dark:bg-slate-900/95 dark:text-slate-200">
                 ✏️ Usa la barra izquierda para dibujar un <strong>polígono</strong> o <strong>rectángulo</strong>
               </div>
@@ -224,15 +317,50 @@ export default function MapSelectionCard({ geometry, onGeometryChange, baseline 
               <span className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
                 Preajustes Rápidos:
               </span>
+
+              {/* Botón dinámico para la región activa válida */}
+              {activeRegionPreset && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setView(activeRegionPreset.center)
+                    setZoomLevel(10)
+                    onGeometryChange(activeRegionPreset.geometry)
+                  }}
+                  className="rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-800 shadow-xs transition hover:bg-emerald-100 hover:border-emerald-500 dark:border-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 dark:hover:bg-emerald-900/60"
+                  title="Cargar polígono de prueba dentro del área válida del modelo activo"
+                >
+                  🎯 {activeRegionPreset.name}
+                </button>
+              )}
+
+              {/* Botón para enfocar la zona válida */}
+              {regionBounds && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setView([regionBounds.lat, regionBounds.lon])
+                    setZoomLevel(10)
+                  }}
+                  className="rounded-xl border border-sky-200 bg-sky-50/70 px-2.5 py-1.5 text-xs font-medium text-sky-700 hover:bg-sky-100 dark:border-sky-800 dark:bg-slate-900 dark:text-sky-300"
+                  title="Centrar mapa en la zona de validez del modelo activo"
+                >
+                  🔍 Centrar en {regionName?.split('(')[0]?.trim() || 'zona'}
+                </button>
+              )}
+
+              {/* Presets fijos para contrastar y demostrar el bloqueo */}
               {PRESETS.map((p) => (
                 <button
                   key={p.id}
                   type="button"
                   onClick={() => {
                     setView(p.center)
+                    setZoomLevel(11)
                     onGeometryChange(p.geometry)
                   }}
                   className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-xs transition hover:border-emerald-500 hover:text-emerald-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-emerald-500 dark:hover:text-emerald-400"
+                  title={p.desc}
                 >
                   📍 {p.name}
                 </button>
@@ -255,9 +383,52 @@ export default function MapSelectionCard({ geometry, onGeometryChange, baseline 
         <div className="flex flex-col justify-between space-y-4">
           <div className="space-y-3">
             {geometry ? (
-              <StatusBanner tone="success">{t('map_captured')}</StatusBanner>
+              <StatusBanner tone={isAreaValid ? 'success' : 'error'}>
+                {isAreaValid ? t('map_captured') : '⚠️ Área fuera de la región válida del modelo'}
+              </StatusBanner>
             ) : (
               <StatusBanner tone="info">{t('map_drawPrompt')}</StatusBanner>
+            )}
+
+            {/* Geographic Scope Validation Alert */}
+            {geometry && regionBounds && (
+              isAreaValid ? (
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50/80 p-3 text-xs text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300">
+                  <div className="flex items-center gap-1.5 font-bold">
+                    <span>✅</span>
+                    <span>Área Geográficamente Válida</span>
+                  </div>
+                  <p className="mt-1 text-[11px] text-emerald-700 dark:text-emerald-400 leading-relaxed">
+                    El centroide está a <strong>{validationDistanceKm?.toFixed(1)} km</strong> del centro de <em>{regionName}</em> (máx. permitido con tolerancia: <strong>{validationMaxKm?.toFixed(1)} km</strong>). Validez ecológica asegurada.
+                  </p>
+                </div>
+              ) : (
+                <div className="rounded-xl border border-rose-300 bg-rose-50 p-3.5 text-xs text-rose-950 dark:border-rose-900/60 dark:bg-rose-950/60 dark:text-rose-200 shadow-xs">
+                  <div className="flex items-start gap-2">
+                    <span className="text-lg shrink-0">⚠️</span>
+                    <div>
+                      <p className="font-bold text-rose-800 dark:text-rose-300">
+                        Bloqueo por Validez Científica (Domain Shift)
+                      </p>
+                      <p className="mt-1 text-[11px] leading-relaxed text-rose-900 dark:text-rose-200">
+                        {validationMessage}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )
+            )}
+
+            {geometry && !regionBounds && (
+              <div className="rounded-xl border border-purple-200 bg-purple-50/80 p-3 text-xs text-purple-800 dark:border-purple-900/50 dark:bg-purple-950/40 dark:text-purple-300">
+                <div className="flex items-center gap-1.5 font-bold">
+                  <span>🧪</span>
+                  <span>Modelo Sintético (Sin restricción espacial)</span>
+                </div>
+                <p className="mt-0.5 text-[11px] text-purple-700 dark:text-purple-400 leading-relaxed">
+                  Permite simular en cualquier ubicación, pero no cuenta con calibración agroecológica empírica.
+                </p>
+              </div>
             )}
 
             {/* Geometry info card */}

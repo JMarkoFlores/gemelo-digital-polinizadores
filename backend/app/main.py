@@ -98,6 +98,8 @@ async def healthcheck():
         "model_version": model_store.version,
         "model_status": model_store.status_message,
         "fuente_datos": model_store.fuente_datos,
+        "region_name": model_store.region_name,
+        "region_bounds": model_store.region_bounds,
         "data_source_summary": model_store.data_source_summary,
     }
 
@@ -145,6 +147,8 @@ async def reload_model(_: Usuario = Depends(require_role("admin", "cliente"))):
         "model_status": model_store.status_message,
         "model_version": model_store.version,
         "fuente_datos": model_store.fuente_datos,
+        "region_name": model_store.region_name,
+        "region_bounds": model_store.region_bounds,
         "data_source_summary": model_store.data_source_summary,
     }
 
@@ -156,9 +160,21 @@ async def model_status(current_user: Usuario = Depends(require_role("admin", "cl
         "model_status": model_store.status_message,
         "model_version": model_store.version,
         "fuente_datos": model_store.fuente_datos,
+        "region_name": model_store.region_name,
+        "region_bounds": model_store.region_bounds,
         "data_source_summary": model_store.data_source_summary,
         "requested_by": current_user.email,
     }
+
+
+@app.get("/api/model/region-check")
+async def check_region(
+    lat: float = Query(..., description="Latitud del punto o centroide a verificar"),
+    lon: float = Query(..., description="Longitud del punto o centroide a verificar"),
+    tolerance: float = Query(0.2, ge=0.0, le=1.0, description="Margen de tolerancia sobre el radio (default 20%)"),
+    _: Usuario = Depends(require_role("admin", "cliente")),
+):
+    return model_store.check_point_in_region(lat=lat, lon=lon, tolerance=tolerance)
 
 
 @app.post("/api/simular", response_model=SimulationResultPayload)

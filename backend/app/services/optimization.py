@@ -215,6 +215,12 @@ def run_simulation(payload: dict[str, Any]) -> dict[str, Any]:
         return {**cached, "cache_hit": True}
 
     context = parse_geometry(payload.get("geometry"), payload.get("bbox"))
+
+    # Control de validez agroecológica / Prevención de Domain Shift
+    region_check = model_store.check_point_in_region(context.centroid_lat, context.centroid_lon)
+    if not region_check["is_valid"]:
+        raise ValueError(region_check["message"])
+
     baseline_features = build_baseline_features(
         context=context,
         pesticide_level=float(payload["pesticide_level"]),

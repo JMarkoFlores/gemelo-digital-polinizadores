@@ -1,7 +1,17 @@
 import { useTranslation } from 'react-i18next'
 import PanelCard from './PanelCard'
 
-export default function ScenarioPanel({ values, onChange, onRun, disabled, loading }) {
+export default function ScenarioPanel({
+  values,
+  onChange,
+  onRun,
+  disabled,
+  loading,
+  isAreaValid = true,
+  validationMessage = null,
+  regionName = null,
+  hasRestriction = false,
+}) {
   const { t } = useTranslation()
 
   return (
@@ -111,9 +121,28 @@ export default function ScenarioPanel({ values, onChange, onRun, disabled, loadi
         </div>
       </div>
 
+      {/* Warning banner when domain shift blocks execution */}
+      {!isAreaValid && validationMessage && (
+        <div className="mt-4 rounded-xl border border-rose-300 bg-rose-50/95 p-3.5 text-xs text-rose-950 dark:border-rose-900/60 dark:bg-rose-950/60 dark:text-rose-200 shadow-xs">
+          <div className="flex items-start gap-2.5">
+            <span className="text-xl shrink-0">🚫</span>
+            <div>
+              <strong className="text-rose-800 dark:text-rose-300 font-bold text-sm">
+                Optimización Bloqueada por Validez Científica (Domain Shift)
+              </strong>
+              <p className="mt-1 leading-relaxed text-rose-900 dark:text-rose-200">
+                {validationMessage}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-slate-100 dark:border-slate-800/60">
         <p className="text-xs text-slate-500 dark:text-slate-400 text-center sm:text-left">
-          {disabled
+          {!isAreaValid
+            ? '⛔ Optimización bloqueada: el polígono está fuera de la región ecológica válida del modelo'
+            : disabled
             ? '💡 Dibuja o selecciona un polígono en el mapa para habilitar la optimización'
             : 'Listo para simular la abundancia de polinizadores y rendimiento'}
         </p>
@@ -121,8 +150,13 @@ export default function ScenarioPanel({ values, onChange, onRun, disabled, loadi
         <button
           id="run-optimization-btn"
           onClick={onRun}
-          disabled={disabled || loading}
-          className="group relative flex w-full sm:w-auto items-center justify-center gap-2 rounded-xl bg-emerald-600 px-6 py-3 font-semibold text-white shadow-md transition hover:bg-emerald-500 active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none"
+          disabled={disabled || loading || !isAreaValid}
+          title={!isAreaValid ? 'Bloqueado por validez geográfica (Domain Shift)' : ''}
+          className={`group relative flex w-full sm:w-auto items-center justify-center gap-2 rounded-xl px-6 py-3 font-semibold text-white shadow-md transition ${
+            !isAreaValid
+              ? 'bg-slate-400 cursor-not-allowed opacity-60 dark:bg-slate-700'
+              : 'bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none'
+          }`}
         >
           {loading ? (
             <>
