@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import ProtectedRoute from './components/ProtectedRoute'
 import AppShell from './components/AppShell'
 import FullScreenLoader from './components/FullScreenLoader'
+import ErrorBoundary from './components/ErrorBoundary'
 
 const LoginPage = lazy(() => import('./pages/LoginPage'))
 const RegisterPage = lazy(() => import('./pages/RegisterPage'))
@@ -17,23 +18,25 @@ const ChatWidget = lazy(() => import('./components/ChatWidget'))
 export default function App() {
   return (
     <>
-      <Suspense fallback={<FullScreenLoader label="Cargando interfaz" />}>
-        <Routes>
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<RegisterPage />} />
-          <Route path="/client" element={<ProtectedRoute allowedRoles={["cliente", "admin"]}><AppShell /></ProtectedRoute>}>
-            <Route index element={<ClientDashboard />} />
-            <Route path="history" element={<ClientHistoryPage />} />
-          </Route>
-          <Route path="/admin" element={<ProtectedRoute allowedRoles={["admin"]}><AppShell /></ProtectedRoute>}>
-            <Route index element={<AdminDashboard />} />
-            <Route path="users" element={<AdminUsersPage />} />
-            <Route path="simulations" element={<AdminSimulationsPage />} />
-            <Route path="reports" element={<AdminReportsPage />} />
-          </Route>
-          <Route path="*" element={<Navigate to="/login" replace />} />
-        </Routes>
-      </Suspense>
+      <ErrorBoundary>
+        <Suspense fallback={<FullScreenLoader label="Cargando interfaz" />}>
+          <Routes>
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<RegisterPage />} />
+            <Route path="/client" element={<ProtectedRoute allowedRoles={["cliente", "admin"]}><AppShell /></ProtectedRoute>}>
+              <Route index element={<ClientDashboard />} />
+              <Route path="history" element={<ClientHistoryPage />} />
+            </Route>
+            <Route path="/admin" element={<ProtectedRoute allowedRoles={["admin"]}><AppShell /></ProtectedRoute>}>
+              <Route index element={<AdminDashboard />} />
+              <Route path="users" element={<AdminUsersPage />} />
+              <Route path="simulations" element={<AdminSimulationsPage />} />
+              <Route path="reports" element={<AdminReportsPage />} />
+            </Route>
+            <Route path="*" element={<Navigate to="/login" replace />} />
+          </Routes>
+        </Suspense>
+      </ErrorBoundary>
       <Suspense fallback={null}>
         <ChatWidget />
       </Suspense>

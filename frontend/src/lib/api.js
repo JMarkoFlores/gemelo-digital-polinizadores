@@ -100,27 +100,6 @@ api.interceptors.response.use(
         return { data: user, status: 200 }
       }
 
-      if (url.includes('/api/model/status')) {
-        return {
-          data: {
-            model_ready: true,
-            model_name: 'DNN Surrogate (Híbrido)',
-            model_status: 'DNN Surrogate (Híbrido)',
-            version: 'v1.4.0',
-          },
-          status: 200,
-        }
-      }
-
-      if (url.includes('/api/model/reload')) {
-        return {
-          data: {
-            model_ready: true,
-            model_status: 'Modelo recargado y calibrado con éxito',
-          },
-          status: 200,
-        }
-      }
 
       if (url.includes('/api/simular')) {
         let body = {}

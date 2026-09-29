@@ -1,9 +1,12 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
-import { MapContainer, TileLayer, GeoJSON, Polygon, useMap } from 'react-leaflet'
+import { MapContainer, TileLayer, GeoJSON, Polygon, Tooltip, useMap } from 'react-leaflet'
+import L from '../lib/leaflet'
 import 'leaflet/dist/leaflet.css'
 import { generateLandscapeGrid } from './LandscapeDiorama3D'
+import { LAND_USE_PALETTE } from '../lib/landUseColors'
+import { LandUseProgressBar, LandUse2DCards } from './LandUseDistributionCards'
 
 // Sutherland-Hodgman Polygon Clipping against bounding rectangle
 function clipPolygonAgainstRectangle(subjectPoly, rect) {
@@ -72,32 +75,42 @@ function computeIntersection(p1, p2, edgeX, edgeY) {
 
 /**
  * Leaflet helper to invalidate map container size and auto-fit polygon bounds.
- * Prevents grey tiles and layout mismatch when expanding into modal dialogs.
+ * Uses bounds.pad(0.14) to maintain an optimal 14% margin around small and large polygons.
  */
 function MapAutoFitHelper({ geometry, center, triggerCount = 0 }) {
   const map = useMap()
 
   useEffect(() => {
-    // Initial invalidate
-    map.invalidateSize()
-
-    // Delayed invalidate to accommodate modal opening / animation
-    const timer = setTimeout(() => {
-      map.invalidateSize()
-      if (geometry?.coordinates?.[0]?.length) {
-        try {
-          const coords = geometry.coordinates[0]
-          const bounds = coords.map(([lon, lat]) => [lat, lon])
-          map.fitBounds(bounds, { padding: [35, 35], maxZoom: 17 })
-        } catch {
-          if (center) map.setView(center, 14)
+    const fit = () => {
+      try {
+        map.invalidateSize()
+        const coords = geometry?.coordinates?.[0]
+        if (coords && coords.length > 2) {
+          const latLngs = coords.map(([lon, lat]) => [lat, lon])
+          const bounds = L.latLngBounds(latLngs)
+          if (bounds.isValid()) {
+            // Margen proporcional razonable (~14%) para encuadre nítido en tarjetas compactas y modales
+            const paddedBounds = bounds.pad(0.14)
+            map.fitBounds(paddedBounds, { padding: [10, 10], maxZoom: 18, animate: false })
+            return
+          }
         }
-      } else if (center) {
-        map.setView(center, 14)
+        if (center) {
+          map.setView(center, 14, { animate: false })
+        }
+      } catch {
+        if (center) map.setView(center, 14, { animate: false })
       }
-    }, 120)
+    }
 
-    return () => clearTimeout(timer)
+    fit()
+    const timer1 = setTimeout(fit, 80)
+    const timer2 = setTimeout(fit, 250)
+
+    return () => {
+      clearTimeout(timer1)
+      clearTimeout(timer2)
+    }
   }, [map, geometry, center, triggerCount])
 
   return null
@@ -110,10 +123,12 @@ export default function ExpandableMapCard({
   geometry,
   center,
   optimal,
+  elevationData = null,
 }) {
   const { t } = useTranslation()
   const [isExpanded, setIsExpanded] = useState(false)
   const [fitTrigger, setFitTrigger] = useState(0)
+  const [showHillshade, setShowHillshade] = useState(true)
 
   const mapStyle = optimal
     ? { fillColor: '#10b981', fillOpacity: 0.55, color: '#f59e0b', weight: 3 }
@@ -143,16 +158,24 @@ export default function ExpandableMapCard({
     return { subjectPoly: poly, minLon: minX, minLat: minY, maxLon: maxX, maxLat: maxY }
   }, [geometry])
 
-  // Generate deterministic grid (seed 84 for optimal, 42 for base)
+  // Generate deterministic grid (seed 84 for optimal, 42 for base) with elevation relief data
   const seed = optimal ? 84 : 42
-  const cells = useMemo(() => generateLandscapeGrid(mix, seed), [mix, seed])
+  const cells = useMemo(
+    () => generateLandscapeGrid(mix, seed, elevationData),
+    [mix, seed, elevationData]
+  )
 
-  // Compute clipped land-use polygon features
+  // Compute clipped land-use polygon features with topography hillshade
   const gridPolygonFeatures = useMemo(() => {
     if (subjectPoly.length <= 2 || minLon === 999) return []
     const cellWidth = (maxLon - minLon) / 10
     const cellHeight = (maxLat - minLat) / 10
     const features = []
+
+    const hasElevation = !!(elevationData?.available && elevationData?.matrix)
+    const matrix = elevationData?.matrix
+    const rangeM = Number(elevationData?.elevation_range_m ?? 0)
+    const minE = Number(elevationData?.min_elevation_m ?? 0)
 
     cells.forEach((cell) => {
       const rectMinLon = minLon + cell.x * cellWidth
@@ -164,22 +187,72 @@ export default function ExpandableMapCard({
       const clipped = clipPolygonAgainstRectangle(subjectPoly, rect)
 
       if (clipped && clipped.length > 2) {
-        let color = 'transparent'
-        if (cell.type === 'crop') color = '#059669' // emerald-600
-        else if (cell.type === 'natural') color = '#065f46' // emerald-800
-        else if (cell.type === 'floral') color = '#f59e0b' // amber-500
+        let baseColor = 'transparent'
+        let typeLabel = 'Área sin modelar'
+        if (cell.type === 'crop') {
+          baseColor = LAND_USE_PALETTE.crop.hex // Cultivo verde intenso (#059669)
+          typeLabel = 'Cultivo'
+        } else if (cell.type === 'natural') {
+          baseColor = LAND_USE_PALETTE.natural.hex // Seminatural azul claro (#38bdf8 / #7EC8E3)
+          typeLabel = 'Seminatural'
+        } else if (cell.type === 'floral') {
+          baseColor = LAND_USE_PALETTE.floral.hex // Franjas florales naranja (#f59e0b)
+          typeLabel = 'Franjas Florales'
+        }
 
-        if (color !== 'transparent') {
+        if (baseColor !== 'transparent') {
+          let elevM = null
+          let relElevM = null
+          let fillOpacity = 0.65
+          let strokeColor = baseColor
+          let strokeWeight = 1
+
+          if (hasElevation && matrix) {
+            const z = cell.z
+            const x = cell.x
+            elevM = matrix[z]?.[x] ?? null
+            if (elevM !== null) {
+              relElevM = elevM - minE
+
+              if (rangeM >= 4.0) {
+                const left = matrix[z]?.[Math.max(0, x - 1)] ?? elevM
+                const right = matrix[z]?.[Math.min(9, x + 1)] ?? elevM
+                const top = matrix[Math.max(0, z - 1)]?.[x] ?? elevM
+                const bottom = matrix[Math.min(9, z + 1)]?.[x] ?? elevM
+
+                // Hillshade relief lighting from North-West
+                const slopeNW = ((top - elevM) + (left - elevM)) / 2.0
+                const normSlope = Math.max(-0.25, Math.min(0.25, slopeNW / Math.max(12.0, rangeM * 0.22)))
+
+                // Modulate fillOpacity according to sun incidence
+                fillOpacity = Math.max(0.42, Math.min(0.85, 0.65 + normSlope * 0.45))
+                if (normSlope > 0.08) {
+                  strokeColor = '#ffffff'
+                  strokeWeight = 1.2
+                } else if (normSlope < -0.08) {
+                  strokeColor = '#0f172a'
+                  strokeWeight = 1.2
+                }
+              }
+            }
+          }
+
           features.push({
             id: `${cell.x}-${cell.z}`,
             positions: clipped.map(([lon, lat]) => [lat, lon]),
-            color,
+            color: baseColor,
+            fillOpacity,
+            strokeColor,
+            strokeWeight,
+            typeLabel,
+            elevationM: elevM,
+            relElevationM: relElevM,
           })
         }
       }
     })
     return features
-  }, [cells, subjectPoly, minLon, minLat, maxLon, maxLat])
+  }, [cells, subjectPoly, minLon, minLat, maxLon, maxLat, elevationData])
 
   // Manage body scroll and Escape key when modal is open
   useEffect(() => {
@@ -205,6 +278,9 @@ export default function ExpandableMapCard({
     setFitTrigger((prev) => prev + 1)
   }, [])
 
+  const hasElevation = !!(elevationData?.available && elevationData?.elevation_range_m !== undefined)
+  const rangeM = Number(elevationData?.elevation_range_m ?? 0)
+
   return (
     <>
       {/* Standard 2D Leaflet Card in Dashboard */}
@@ -227,6 +303,19 @@ export default function ExpandableMapCard({
                     Estado Actual
                   </span>
                 )}
+
+                {hasElevation ? (
+                  <span
+                    className="inline-flex items-center gap-1 rounded-full bg-sky-500/10 px-2 py-0.5 text-[11px] font-semibold text-sky-700 dark:text-sky-300"
+                    title={`Desnivel topográfico real: ${rangeM.toFixed(0)} m`}
+                  >
+                    🏔️ {rangeM > 4 ? `Relieve (Δ ${rangeM.toFixed(0)}m)` : 'Terreno Llano'}
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-[11px] text-slate-400">
+                    🏔️ Vista plana
+                  </span>
+                )}
               </div>
               {subtitle && (
                 <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400 line-clamp-1">
@@ -235,29 +324,46 @@ export default function ExpandableMapCard({
               )}
             </div>
 
-            {/* Individual Expand / Zoom Button */}
-            <button
-              type="button"
-              onClick={() => setIsExpanded(true)}
-              className="inline-flex items-center gap-1.5 shrink-0 rounded-lg border border-slate-200 bg-slate-50/80 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:border-emerald-500/40 hover:bg-white hover:text-emerald-600 hover:shadow-xs dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-200 dark:hover:border-emerald-500/50 dark:hover:bg-slate-800 dark:hover:text-emerald-400 transition-all cursor-pointer"
-              title="Ampliar vista del mapa satelital en modal"
-              aria-label={`Ampliar vista de ${title}`}
-            >
-              <svg
-                className="h-3.5 w-3.5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
+            {/* Actions: Toggle Hillshade & Expand */}
+            <div className="flex items-center gap-1.5 shrink-0">
+              {hasElevation && rangeM >= 4 && (
+                <button
+                  type="button"
+                  onClick={() => setShowHillshade(!showHillshade)}
+                  className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-medium transition-all ${
+                    showHillshade
+                      ? 'border-sky-300 bg-sky-50 text-sky-800 dark:border-sky-800 dark:bg-sky-950/60 dark:text-sky-300'
+                      : 'border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                  }`}
+                  title={showHillshade ? 'Desactivar sombreado de relieve' : 'Activar sombreado de relieve topográfico'}
+                >
+                  🏔️ Relieve
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setIsExpanded(true)}
+                className="inline-flex items-center gap-1.5 shrink-0 rounded-lg border border-slate-200 bg-slate-50/80 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:border-emerald-500/40 hover:bg-white hover:text-emerald-600 hover:shadow-xs dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-200 dark:hover:border-emerald-500/50 dark:hover:bg-slate-800 dark:hover:text-emerald-400 transition-all cursor-pointer"
+                title="Ampliar vista del mapa satelital en modal"
+                aria-label={`Ampliar vista de ${title}`}
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15"
-                />
-              </svg>
-              <span>Ampliar</span>
-            </button>
+                <svg
+                  className="h-3.5 w-3.5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15"
+                  />
+                </svg>
+                <span>Ampliar</span>
+              </button>
+            </div>
           </div>
 
           {/* Compact Satellite Map */}
@@ -287,13 +393,26 @@ export default function ExpandableMapCard({
                     positions={p.positions}
                     pathOptions={{
                       fillColor: p.color,
-                      fillOpacity: 0.65,
-                      color: p.color,
-                      weight: 1,
-                      opacity: 0.8,
+                      fillOpacity: showHillshade ? p.fillOpacity : 0.65,
+                      color: showHillshade ? p.strokeColor : p.color,
+                      weight: showHillshade ? p.strokeWeight : 1,
+                      opacity: 0.85,
                     }}
-                  />
+                  >
+                    <Tooltip sticky direction="top" className="text-xs">
+                      <div className="font-sans">
+                        <span className="font-bold">{p.typeLabel}</span>
+                        {p.elevationM !== null && p.elevationM !== undefined && (
+                          <div className="text-[11px] text-slate-300 mt-0.5 font-mono">
+                            🏔️ Cota: <strong>{p.elevationM.toFixed(0)} m</strong>
+                            {p.relElevationM !== null && ` (+${p.relElevationM.toFixed(0)}m)`}
+                          </div>
+                        )}
+                      </div>
+                    </Tooltip>
+                  </Polygon>
                 ))}
+                <MapAutoFitHelper geometry={geometry} center={center} />
               </MapContainer>
             )}
 
@@ -326,95 +445,58 @@ export default function ExpandableMapCard({
             </div>
           </div>
 
-          {/* Proportional Land-Use Bar */}
-          <div className="mt-4 space-y-1.5">
-            <div className="flex justify-between text-xs font-medium text-slate-600 dark:text-slate-300">
-              <span>Distribución de Superficie</span>
-              <span className="font-mono text-slate-400">{totalPct.toFixed(1)}% Total</span>
-            </div>
-            <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
-              <div
-                style={{ width: `${cropPct}%` }}
-                className="bg-emerald-500 transition-all"
-                title={`Cultivo: ${cropPct.toFixed(1)}%`}
-              />
-              <div
-                style={{ width: `${naturalPct}%` }}
-                className="bg-sky-500 transition-all"
-                title={`Seminatural: ${naturalPct.toFixed(1)}%`}
-              />
-              <div
-                style={{ width: `${floralPct}%` }}
-                className="bg-amber-400 transition-all"
-                title={`Franjas: ${floralPct.toFixed(1)}%`}
-              />
-            </div>
-          </div>
-
-          {/* Breakdown Metric Chips (acts as Legend) */}
-          <div className="mt-4 grid grid-cols-3 gap-2 text-center">
-            <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/[0.04] p-2.5 dark:bg-emerald-500/[0.08]">
-              <div className="flex items-center justify-center gap-1.5 mb-1">
-                <span className="h-2 w-2 rounded-xs bg-[#059669] inline-block shadow-xs" />
-                <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
-                  {t('results_crop')}
-                </p>
-              </div>
-              <p className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100 font-display">
-                {mix?.crop_area_pct?.toFixed?.(1) ?? 'N/A'}%
-              </p>
-            </div>
-            <div className="rounded-xl border border-sky-500/20 bg-sky-500/[0.04] p-2.5 dark:bg-sky-500/[0.08]">
-              <div className="flex items-center justify-center gap-1.5 mb-1">
-                <span className="h-2 w-2 rounded-xs bg-[#065f46] inline-block shadow-xs" />
-                <p className="text-[10px] font-bold uppercase tracking-wider text-sky-700 dark:text-sky-300">
-                  {t('results_seminatural')}
-                </p>
-              </div>
-              <p className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100 font-display">
-                {mix?.natural_area_pct?.toFixed?.(1) ?? 'N/A'}%
-              </p>
-            </div>
-            <div className="rounded-xl border border-amber-500/20 bg-amber-500/[0.04] p-2.5 dark:bg-amber-500/[0.08]">
-              <div className="flex items-center justify-center gap-1.5 mb-1">
-                <span className="h-2 w-2 rounded-xs bg-[#f59e0b] inline-block shadow-xs" />
-                <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300">
-                  {t('results_floralStrips')}
-                </p>
-              </div>
-              <p className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100 font-display">
-                {mix?.floral_strips_pct?.toFixed?.(1) ?? 'N/A'}%
-              </p>
-            </div>
+          {/* Proportional Land-Use Progress Bar & Redesigned 2D Cards (Mockup 1) */}
+          <div className="mt-4 space-y-3">
+            <LandUseProgressBar
+              cropPct={cropPct}
+              naturalPct={naturalPct}
+              floralPct={floralPct}
+              title="Distribución de Superficie"
+              totalLabel={`${totalPct.toFixed(1)}% Total`}
+            />
+            <LandUse2DCards mix={mix} />
           </div>
         </div>
       </div>
 
-      {/* Expanded Modal / Lightbox Dialog */}
+      {/* Expanded Modal View rendered via Portal */}
       {isExpanded &&
-        typeof document !== 'undefined' &&
         createPortal(
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby={`modal-title-${optimal ? 'opt' : 'base'}`}
-            className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-3 sm:p-6 animate-fadeIn"
-            onClick={(e) => {
-              if (e.target === e.currentTarget) setIsExpanded(false)
-            }}
-          >
-            <div className="relative flex flex-col w-full max-w-5xl max-h-[94vh] rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900 overflow-hidden">
-              {/* Modal Header */}
-              <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3.5 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-5 md:p-8 animate-in fade-in duration-200">
+            {/* Backdrop */}
+            <div
+              className="fixed inset-0 bg-slate-950/75 backdrop-blur-sm transition-opacity"
+              onClick={() => setIsExpanded(false)}
+            />
+
+            {/* Modal Dialog Card */}
+            <div
+              className="relative z-10 flex flex-col w-full max-w-6xl max-h-[92vh] overflow-hidden rounded-2xl sm:rounded-3xl border border-slate-200/90 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Modal Top Bar */}
+              <div className="flex items-center justify-between border-b border-slate-200/80 px-5 py-4 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
                 <div className="flex items-center gap-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                    <svg
+                      className="h-5 w-5"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"
+                      />
+                    </svg>
+                  </div>
                   <div>
-                    <div className="flex items-center gap-2">
-                      <h3
-                        id={`modal-title-${optimal ? 'opt' : 'base'}`}
-                        className="font-bold text-slate-900 dark:text-slate-100 font-display text-lg"
-                      >
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100 font-display">
                         {title}
-                      </h3>
+                      </h2>
                       {optimal ? (
                         <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-xs font-bold text-emerald-600 dark:text-emerald-400">
                           <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
@@ -423,6 +505,12 @@ export default function ExpandableMapCard({
                       ) : (
                         <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-400">
                           Estado Actual
+                        </span>
+                      )}
+
+                      {hasElevation && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-sky-500/10 px-2 py-0.5 text-xs font-semibold text-sky-700 dark:text-sky-300">
+                          🏔️ {rangeM > 4 ? `Relieve Real: ${elevationData.min_elevation_m}m - ${elevationData.max_elevation_m}m (Δ ${rangeM.toFixed(0)}m)` : 'Terreno Llano'}
                         </span>
                       )}
                     </div>
@@ -434,6 +522,20 @@ export default function ExpandableMapCard({
 
                 {/* Modal Top Actions */}
                 <div className="flex items-center gap-2">
+                  {hasElevation && rangeM >= 4 && (
+                    <button
+                      type="button"
+                      onClick={() => setShowHillshade(!showHillshade)}
+                      className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+                        showHillshade
+                          ? 'border-sky-300 bg-sky-50 text-sky-800 dark:border-sky-800 dark:bg-sky-950/60 dark:text-sky-300'
+                          : 'border-slate-200 bg-white text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200'
+                      }`}
+                    >
+                      🏔️ Sombreado de Relieve: {showHillshade ? 'ON' : 'OFF'}
+                    </button>
+                  )}
+
                   <button
                     type="button"
                     onClick={handleRecenter}
@@ -513,12 +615,24 @@ export default function ExpandableMapCard({
                         positions={p.positions}
                         pathOptions={{
                           fillColor: p.color,
-                          fillOpacity: 0.65,
-                          color: p.color,
-                          weight: 1,
-                          opacity: 0.8,
+                          fillOpacity: showHillshade ? p.fillOpacity : 0.65,
+                          color: showHillshade ? p.strokeColor : p.color,
+                          weight: showHillshade ? p.strokeWeight : 1,
+                          opacity: 0.85,
                         }}
-                      />
+                      >
+                        <Tooltip sticky direction="top" className="text-xs">
+                          <div className="font-sans">
+                            <span className="font-bold">{p.typeLabel}</span>
+                            {p.elevationM !== null && p.elevationM !== undefined && (
+                              <div className="text-[11px] text-slate-300 mt-0.5 font-mono">
+                                🏔️ Cota: <strong>{p.elevationM.toFixed(0)} m s.n.m.</strong>
+                                {p.relElevationM !== null && ` (+${p.relElevationM.toFixed(0)}m)`}
+                              </div>
+                            )}
+                          </div>
+                        </Tooltip>
+                      </Polygon>
                     ))}
                     <MapAutoFitHelper
                       geometry={geometry}
@@ -533,77 +647,22 @@ export default function ExpandableMapCard({
                   <span>💡 Arrastra el mapa o usa la rueda del ratón para zoom detallado</span>
                 </div>
 
-                <div className="pointer-events-none absolute bottom-2 right-2 z-[1000] rounded-md bg-black/60 px-2.5 py-0.5 text-[11px] text-white/90 backdrop-blur-xs font-mono">
-                  Esri World Imagery
+                <div className="pointer-events-none absolute bottom-3 right-3 z-[1000] rounded-md bg-black/60 px-2.5 py-1 text-[11px] text-white/90 backdrop-blur-xs font-mono">
+                  Esri World Imagery • Topografía Satelital
                 </div>
               </div>
 
-              {/* Modal Footer with Proportional Bar & Legend Chips */}
-              <div className="border-t border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-                <div className="grid gap-4 md:grid-cols-2 items-center">
-                  {/* Proportional Land-Use Bar */}
-                  <div className="space-y-1.5">
-                    <div className="flex justify-between text-xs font-medium text-slate-600 dark:text-slate-300">
-                      <span>Distribución Proporcional de Superficie</span>
-                      <span className="font-mono text-slate-400">{totalPct.toFixed(1)}% Total</span>
-                    </div>
-                    <div className="flex h-3 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
-                      <div
-                        style={{ width: `${cropPct}%` }}
-                        className="bg-emerald-500 transition-all"
-                        title={`Cultivo: ${cropPct.toFixed(1)}%`}
-                      />
-                      <div
-                        style={{ width: `${naturalPct}%` }}
-                        className="bg-sky-500 transition-all"
-                        title={`Seminatural: ${naturalPct.toFixed(1)}%`}
-                      />
-                      <div
-                        style={{ width: `${floralPct}%` }}
-                        className="bg-amber-400 transition-all"
-                        title={`Franjas Florales: ${floralPct.toFixed(1)}%`}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Breakdown Chips */}
-                  <div className="grid grid-cols-3 gap-2 text-center">
-                    <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/[0.04] p-2 dark:bg-emerald-500/[0.08]">
-                      <div className="flex items-center justify-center gap-1.5 mb-0.5">
-                        <span className="h-2 w-2 rounded-xs bg-[#059669] inline-block shadow-xs" />
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
-                          {t('results_crop')}
-                        </p>
-                      </div>
-                      <p className="text-base font-bold text-slate-900 dark:text-slate-100 font-display">
-                        {mix?.crop_area_pct?.toFixed?.(1) ?? 'N/A'}%
-                      </p>
-                    </div>
-
-                    <div className="rounded-xl border border-sky-500/20 bg-sky-500/[0.04] p-2 dark:bg-sky-500/[0.08]">
-                      <div className="flex items-center justify-center gap-1.5 mb-0.5">
-                        <span className="h-2 w-2 rounded-xs bg-[#065f46] inline-block shadow-xs" />
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-sky-700 dark:text-sky-300">
-                          {t('results_seminatural')}
-                        </p>
-                      </div>
-                      <p className="text-base font-bold text-slate-900 dark:text-slate-100 font-display">
-                        {mix?.natural_area_pct?.toFixed?.(1) ?? 'N/A'}%
-                      </p>
-                    </div>
-
-                    <div className="rounded-xl border border-amber-500/20 bg-amber-500/[0.04] p-2 dark:bg-amber-500/[0.08]">
-                      <div className="flex items-center justify-center gap-1.5 mb-0.5">
-                        <span className="h-2 w-2 rounded-xs bg-[#f59e0b] inline-block shadow-xs" />
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300">
-                          {t('results_floralStrips')}
-                        </p>
-                      </div>
-                      <p className="text-base font-bold text-slate-900 dark:text-slate-100 font-display">
-                        {mix?.floral_strips_pct?.toFixed?.(1) ?? 'N/A'}%
-                      </p>
-                    </div>
-                  </div>
+              {/* Modal Bottom Footer Info */}
+              <div className="border-t border-slate-200/80 px-6 py-4 dark:border-slate-800 bg-white dark:bg-slate-900">
+                <div className="space-y-3">
+                  <LandUseProgressBar
+                    cropPct={cropPct}
+                    naturalPct={naturalPct}
+                    floralPct={floralPct}
+                    title="Distribución Espacial en Grilla 10×10 (1 celda = 1% del área)"
+                    totalLabel={`${totalPct.toFixed(1)}% modelado`}
+                  />
+                  <LandUse2DCards mix={mix} />
                 </div>
               </div>
             </div>

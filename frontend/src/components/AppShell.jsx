@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { useAuth } from '../state/AuthContext'
 import { useUi } from '../state/UiContext'
 import SpinnerBlock from './SpinnerBlock'
+import ErrorBoundary from './ErrorBoundary'
 
 const navItems = {
   cliente: [
@@ -75,18 +76,18 @@ export default function AppShell() {
   const items = navItems[user?.rol === 'admin' ? 'admin' : 'cliente'] || []
 
   useEffect(() => {
-    if (user?.rol === 'admin') {
-      void import('../pages/AdminDashboard')
-      void import('../pages/AdminUsersPage')
-      void import('../pages/AdminSimulationsPage')
-      void import('../pages/AdminReportsPage')
-      return
-    }
+    // Retrasar precarga en segundo plano para no bloquear ni competir con la vista activa
+    const timer = setTimeout(() => {
+      if (user?.rol === 'admin') {
+        void import('../pages/AdminUsersPage')
+        void import('../pages/AdminSimulationsPage')
+        void import('../pages/AdminReportsPage')
+      } else if (user?.rol === 'cliente') {
+        void import('../pages/ClientHistoryPage')
+      }
+    }, 2500)
 
-    if (user?.rol === 'cliente') {
-      void import('../pages/ClientDashboard')
-      void import('../pages/ClientHistoryPage')
-    }
+    return () => clearTimeout(timer)
   }, [user?.rol])
 
   return (
@@ -288,9 +289,11 @@ export default function AppShell() {
 
       {/* Main Content Area */}
       <main className="flex-1 min-w-0 p-4 sm:p-6 lg:p-8">
-        <Suspense fallback={<SpinnerBlock label={t('loadingModule')} />}>
-          <Outlet />
-        </Suspense>
+        <ErrorBoundary>
+          <Suspense fallback={<SpinnerBlock label={t('loadingModule')} timeoutSeconds={10} />}>
+            <Outlet />
+          </Suspense>
+        </ErrorBoundary>
       </main>
     </div>
   )

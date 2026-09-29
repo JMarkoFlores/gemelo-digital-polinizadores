@@ -3,6 +3,7 @@ import { GeoJSON, MapContainer, TileLayer, useMap } from 'react-leaflet'
 import L from '../lib/leaflet'
 import { useTranslation } from 'react-i18next'
 import PanelCard from './PanelCard'
+import { LAND_USE_PALETTE } from '../lib/landUseColors'
 
 /* ── Auto-fit the map to a GeoJSON layer's bounds ─────────────────────── */
 function FitBounds({ data }) {
@@ -12,7 +13,9 @@ function FitBounds({ data }) {
     try {
       const layer = L.geoJSON(data)
       const bounds = layer.getBounds()
-      if (bounds.isValid()) map.fitBounds(bounds, { padding: [16, 16] })
+      if (bounds.isValid()) {
+        map.fitBounds(bounds.pad(0.14), { padding: [10, 10] })
+      }
     } catch {
       // ignore malformed geometries
     }
@@ -22,7 +25,7 @@ function FitBounds({ data }) {
 
 /* ── Color style for optimized FeatureCollection ──────────────────────── */
 function optimizedStyle(feature) {
-  const color = feature?.properties?.color ?? '#60a5fa'
+  const color = feature?.properties?.color ?? '#10b981'
   return { color, fillColor: color, fillOpacity: 0.55, weight: 2 }
 }
 
@@ -36,9 +39,9 @@ const TILE = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
 const TILE_ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
 
 const LEGEND = [
-  { color: '#86efac', label: 'Cultivo' },
-  { color: '#15803d', label: 'Seminatural' },
-  { color: '#fbbf24', label: 'Franjas florales' },
+  { color: LAND_USE_PALETTE.crop.lightHex, label: 'Cultivo' },
+  { color: LAND_USE_PALETTE.natural.hex, label: 'Seminatural' },
+  { color: LAND_USE_PALETTE.floral.hex, label: 'Franjas florales' },
 ]
 
 /* ── Derive a safe center from any GeoJSON ────────────────────────────── */

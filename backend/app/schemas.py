@@ -136,4 +136,32 @@ class AdminDashboardResponse(BaseModel):
     top_regions: list[dict[str, Any]]
 
 
+class ElevationCell(BaseModel):
+    x: int
+    z: int
+    lat: float
+    lon: float
+    elevation_m: float
+    rel_elevation_m: float
+    normalized: float
+
+
+class TerrainElevationRequest(BaseModel):
+    geometry: dict[str, Any] | None = None
+    bbox: list[float] | None = Field(default=None, min_length=4, max_length=4)
+
+
+class TerrainElevationResponse(BaseModel):
+    available: bool
+    source: str
+    min_elevation_m: float
+    max_elevation_m: float
+    elevation_range_m: float
+    mean_elevation_m: float
+    grid: list[ElevationCell]
+    matrix: list[list[float]]
+    normalized_matrix: list[list[float]]
+    message: str
+
+
 TokenResponse.model_rebuild()

@@ -11,6 +11,8 @@ export default function ScenarioPanel({
   validationMessage = null,
   regionName = null,
   hasRestriction = false,
+  modelReady = true,
+  hasGeometry = false,
 }) {
   const { t } = useTranslation()
 
@@ -142,7 +144,9 @@ export default function ScenarioPanel({
         <p className="text-xs text-slate-500 dark:text-slate-400 text-center sm:text-left">
           {!isAreaValid
             ? '⛔ Optimización bloqueada: el polígono está fuera de la región ecológica válida del modelo'
-            : disabled
+            : !modelReady
+            ? '⚠️ Debes entrenar y activar un modelo en Streamlit (puerto 8501) antes de optimizar'
+            : !hasGeometry
             ? '💡 Dibuja o selecciona un polígono en el mapa para habilitar la optimización'
             : 'Listo para simular la abundancia de polinizadores y rendimiento'}
         </p>
@@ -150,10 +154,18 @@ export default function ScenarioPanel({
         <button
           id="run-optimization-btn"
           onClick={onRun}
-          disabled={disabled || loading || !isAreaValid}
-          title={!isAreaValid ? 'Bloqueado por validez geográfica (Domain Shift)' : ''}
-          className={`group relative flex w-full sm:w-auto items-center justify-center gap-2 rounded-xl px-6 py-3 font-semibold text-white shadow-md transition ${
+          disabled={disabled || loading || !isAreaValid || !modelReady}
+          title={
             !isAreaValid
+              ? 'Bloqueado por validez geográfica (Domain Shift)'
+              : !modelReady
+              ? 'Debes entrenar un modelo en Streamlit primero'
+              : !hasGeometry
+              ? 'Selecciona una zona en el mapa'
+              : ''
+          }
+          className={`group relative flex w-full sm:w-auto items-center justify-center gap-2 rounded-xl px-6 py-3 font-semibold text-white shadow-md transition ${
+            !isAreaValid || !modelReady
               ? 'bg-slate-400 cursor-not-allowed opacity-60 dark:bg-slate-700'
               : 'bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none'
           }`}

@@ -60,9 +60,14 @@ function MapController({ center, zoom }) {
   return null
 }
 
-function DrawControl({ onChange, externalGeometry }) {
+function DrawControl({ onChange, externalGeometry, onDrawingChange }) {
   const map = useMap()
   const featureGroupRef = useRef(null)
+  const onChangeRef = useRef(onChange)
+  onChangeRef.current = onChange
+  const onDrawingChangeRef = useRef(onDrawingChange)
+  onDrawingChangeRef.current = onDrawingChange
+  const renderedGeometryRef = useRef(null)
 
   useEffect(() => {
     const featureGroup = new L.FeatureGroup()
@@ -102,36 +107,47 @@ function DrawControl({ onChange, externalGeometry }) {
     const handleCreate = (event) => {
       featureGroup.clearLayers()
       featureGroup.addLayer(event.layer)
-      onChange(event.layer.toGeoJSON().geometry)
+      const geom = event.layer.toGeoJSON().geometry
+      renderedGeometryRef.current = geom
+      onDrawingChangeRef.current?.(false)
+      onChangeRef.current?.(geom)
     }
 
     const handleEdit = () => {
       const layers = featureGroup.getLayers()
       if (layers[0]) {
-        onChange(layers[0].toGeoJSON().geometry)
+        const geom = layers[0].toGeoJSON().geometry
+        renderedGeometryRef.current = geom
+        onDrawingChangeRef.current?.(false)
+        onChangeRef.current?.(geom)
       }
     }
 
-    const handleDelete = () => onChange(null)
+    const handleDelete = () => {
+      renderedGeometryRef.current = null
+      onDrawingChangeRef.current?.(false)
+      onChangeRef.current?.(null)
+    }
+
+    const handleDrawStart = () => onDrawingChangeRef.current?.(true)
+    const handleDrawStop = () => onDrawingChangeRef.current?.(false)
+    const handleEditStart = () => onDrawingChangeRef.current?.(true)
+    const handleEditStop = () => onDrawingChangeRef.current?.(false)
+    const handleDeleteStart = () => onDrawingChangeRef.current?.(true)
+    const handleDeleteStop = () => onDrawingChangeRef.current?.(false)
 
     map.on(L.Draw.Event.CREATED, handleCreate)
     map.on(L.Draw.Event.EDITED, handleEdit)
     map.on(L.Draw.Event.DELETED, handleDelete)
+    map.on(L.Draw.Event.DRAWSTART, handleDrawStart)
+    map.on(L.Draw.Event.DRAWSTOP, handleDrawStop)
+    map.on(L.Draw.Event.EDITSTART, handleEditStart)
+    map.on(L.Draw.Event.EDITSTOP, handleEditStop)
+    map.on(L.Draw.Event.DELETESTART, handleDeleteStart)
+    map.on(L.Draw.Event.DELETESTOP, handleDeleteStop)
 
-    return () => {
-      map.off(L.Draw.Event.CREATED, handleCreate)
-      map.off(L.Draw.Event.EDITED, handleEdit)
-      map.off(L.Draw.Event.DELETED, handleDelete)
-      map.removeControl(drawControl)
-      map.removeLayer(featureGroup)
-    }
-  }, [map, onChange])
-
-  // Sync external geometry when preset is clicked
-  useEffect(() => {
-    if (!featureGroupRef.current) return
-    featureGroupRef.current.clearLayers()
-    if (externalGeometry) {
+    // Initial population if externalGeometry exists when mounted
+    if (externalGeometry && featureGroup.getLayers().length === 0) {
       try {
         const geoJsonLayer = L.geoJSON(externalGeometry, {
           style: {
@@ -141,14 +157,64 @@ function DrawControl({ onChange, externalGeometry }) {
             weight: 2,
           },
         })
-        geoJsonLayer.eachLayer((l) => featureGroupRef.current.addLayer(l))
-        const bounds = geoJsonLayer.getBounds()
-        if (bounds.isValid()) {
-          map.fitBounds(bounds, { padding: [30, 30] })
-        }
+        geoJsonLayer.eachLayer((l) => featureGroup.addLayer(l))
+        renderedGeometryRef.current = externalGeometry
       } catch (e) {
         // ignore parse errors
       }
+    }
+
+    return () => {
+      map.off(L.Draw.Event.CREATED, handleCreate)
+      map.off(L.Draw.Event.EDITED, handleEdit)
+      map.off(L.Draw.Event.DELETED, handleDelete)
+      map.off(L.Draw.Event.DRAWSTART, handleDrawStart)
+      map.off(L.Draw.Event.DRAWSTOP, handleDrawStop)
+      map.off(L.Draw.Event.EDITSTART, handleEditStart)
+      map.off(L.Draw.Event.EDITSTOP, handleEditStop)
+      map.off(L.Draw.Event.DELETESTART, handleDeleteStart)
+      map.off(L.Draw.Event.DELETESTOP, handleDeleteStop)
+      map.removeControl(drawControl)
+      map.removeLayer(featureGroup)
+    }
+  }, [map])
+
+  // Sync external geometry when preset is clicked or external geometry changes
+  useEffect(() => {
+    if (!featureGroupRef.current) return
+
+    if (!externalGeometry) {
+      if (featureGroupRef.current.getLayers().length > 0) {
+        featureGroupRef.current.clearLayers()
+      }
+      renderedGeometryRef.current = null
+      return
+    }
+
+    // If externalGeometry is already rendered in featureGroup (e.g. drawn by user), do nothing
+    if (renderedGeometryRef.current === externalGeometry) {
+      return
+    }
+
+    try {
+      featureGroupRef.current.clearLayers()
+      const geoJsonLayer = L.geoJSON(externalGeometry, {
+        style: {
+          color: '#10b981',
+          fillColor: '#10b981',
+          fillOpacity: 0.25,
+          weight: 2,
+        },
+      })
+      geoJsonLayer.eachLayer((l) => featureGroupRef.current.addLayer(l))
+      renderedGeometryRef.current = externalGeometry
+
+      const bounds = geoJsonLayer.getBounds()
+      if (bounds.isValid()) {
+        map.fitBounds(bounds, { padding: [30, 30] })
+      }
+    } catch (e) {
+      // ignore parse errors
     }
   }, [externalGeometry, map])
 
@@ -158,6 +224,7 @@ function DrawControl({ onChange, externalGeometry }) {
 export default function MapSelectionCard({
   geometry,
   onGeometryChange,
+  onDrawingChange,
   baseline,
   regionBounds = null,
   regionName = null,
@@ -182,11 +249,12 @@ export default function MapSelectionCard({
   }, [regionBounds, geometry, baseline])
 
   useEffect(() => {
-    if (baseline?.geometry?.coordinates?.[0]?.[0]) {
+    // Only set view if no user geometry was selected yet
+    if (!geometry && baseline?.geometry?.coordinates?.[0]?.[0]) {
       const [lng, lat] = baseline.geometry.coordinates[0][0]
       setView([lat, lng])
     }
-  }, [baseline])
+  }, [baseline, geometry])
 
   const copyGeoJson = () => {
     if (!geometry) return
@@ -291,7 +359,7 @@ export default function MapSelectionCard({
                 </Circle>
               )}
 
-              <DrawControl onChange={onGeometryChange} externalGeometry={geometry} />
+              <DrawControl onChange={onGeometryChange} externalGeometry={geometry} onDrawingChange={onDrawingChange} />
             </MapContainer>
 
             {/* Drawing instruction / Geographic scope floating badge */}

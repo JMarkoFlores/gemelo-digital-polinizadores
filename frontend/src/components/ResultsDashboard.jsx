@@ -48,7 +48,7 @@ const CustomScatterTooltip = ({ active, payload }) => {
   return null
 }
 
-export default function ResultsDashboard({ result }) {
+export default function ResultsDashboard({ result, elevationData = null }) {
   const { t } = useTranslation()
   const [spatialViewMode, setSpatialViewMode] = useState('both') // 'satellite' | 'diorama' | 'both'
 
@@ -209,6 +209,7 @@ export default function ResultsDashboard({ result }) {
                   geometry={result.baseline.geometry}
                   center={result.baseline.center || [-8.1, -79.0]}
                   optimal={false}
+                  elevationData={elevationData}
                 />
                 <ExpandableMapCard
                   title={t('results_optLandscape')}
@@ -217,6 +218,7 @@ export default function ResultsDashboard({ result }) {
                   geometry={result.baseline.geometry}
                   center={result.baseline.center || [-8.1, -79.0]}
                   optimal={true}
+                  elevationData={elevationData}
                 />
               </div>
             </div>
@@ -235,6 +237,8 @@ export default function ResultsDashboard({ result }) {
               <LandscapeDiorama3D
                 baselineMix={baselineMix}
                 optimalMix={optimalMix}
+                elevationData={elevationData}
+                geometry={result?.baseline?.geometry}
               />
             </div>
           )}

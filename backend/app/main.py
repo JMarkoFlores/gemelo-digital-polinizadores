@@ -21,6 +21,8 @@ from app.schemas import (
     SimulationRequest,
     SimulationResponse,
     SimulationResultPayload,
+    TerrainElevationRequest,
+    TerrainElevationResponse,
     TokenResponse,
     UserCreate,
     UserLogin,
@@ -34,6 +36,7 @@ from app.services.chat_service import generate_chat_reply
 from app.services.model_store import model_store
 from app.services.optimization import run_simulation
 from app.services.recommendation_service import generate_ai_recommendation
+from app.services.terrain_service import get_elevation_grid
 
 settings = get_settings()
 
@@ -175,6 +178,16 @@ async def check_region(
     _: Usuario = Depends(require_role("admin", "cliente")),
 ):
     return model_store.check_point_in_region(lat=lat, lon=lon, tolerance=tolerance)
+
+
+@app.post("/api/terrain/elevation-grid", response_model=TerrainElevationResponse)
+async def get_terrain_elevation(
+    payload: TerrainElevationRequest,
+    _: Usuario = Depends(require_role("admin", "cliente")),
+):
+    """Devuelve la grilla 10x10 de elevación real en metros para el polígono."""
+    data = get_elevation_grid(geometry=payload.geometry, bbox=payload.bbox)
+    return TerrainElevationResponse(**data)
 
 
 @app.post("/api/simular", response_model=SimulationResultPayload)
