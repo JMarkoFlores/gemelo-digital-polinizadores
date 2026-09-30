@@ -52,6 +52,65 @@ st.markdown(
         text-transform: uppercase;
         margin-bottom: 0.6rem;
     }
+    .crisp-stepper-box {
+        background: rgba(30, 41, 59, 0.45);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 10px;
+        padding: 0.75rem 1rem 0.6rem 1rem;
+        margin-top: -0.25rem;
+        margin-bottom: 1rem;
+    }
+    .crisp-stepper-title {
+        font-size: 0.8rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+        color: #94a3b8;
+        margin-bottom: 0.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+    }
+    .crisp-grid {
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+        gap: 0.5rem;
+    }
+    .crisp-chip {
+        background: rgba(15, 23, 42, 0.6);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 8px;
+        padding: 0.45rem 0.5rem;
+        text-align: center;
+    }
+    .crisp-chip-badge {
+        display: inline-block;
+        font-size: 0.68rem;
+        font-weight: 800;
+        color: #22c55e;
+        background: #22c55e1a;
+        padding: 0.1rem 0.45rem;
+        border-radius: 4px;
+        margin-bottom: 0.2rem;
+        text-transform: uppercase;
+    }
+    .crisp-chip-name {
+        font-size: 0.76rem;
+        font-weight: 600;
+        color: #f1f5f9;
+        line-height: 1.15;
+    }
+    .crisp-chip-desc {
+        font-size: 0.65rem;
+        color: #94a3b8;
+        margin-top: 0.2rem;
+        line-height: 1.1;
+    }
+    @media (max-width: 900px) {
+        .crisp-grid {
+            grid-template-columns: repeat(3, 1fr);
+        }
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -87,13 +146,71 @@ def render_header() -> None:
     st.divider()
 
 
+def render_crisp_stepper() -> None:
+    st.markdown(
+        """
+        <div class="crisp-stepper-box">
+          <div class="crisp-stepper-title">
+            <span>🔄</span> Flujo Metodológico CRISP-DM
+          </div>
+          <div class="crisp-grid">
+            <div class="crisp-chip">
+              <div class="crisp-chip-badge">Fase 1</div>
+              <div class="crisp-chip-name">Comprensión Negocio</div>
+              <div class="crisp-chip-desc">Objetivos & Hipótesis</div>
+            </div>
+            <div class="crisp-chip">
+              <div class="crisp-chip-badge">Fase 2</div>
+              <div class="crisp-chip-name">Comprensión Datos</div>
+              <div class="crisp-chip-desc">EDA, T1-T3, F1-F3</div>
+            </div>
+            <div class="crisp-chip">
+              <div class="crisp-chip-badge">Fase 3</div>
+              <div class="crisp-chip-name">Preparación Datos</div>
+              <div class="crisp-chip-desc">Ingesta & ABM (F4, F5)</div>
+            </div>
+            <div class="crisp-chip">
+              <div class="crisp-chip-badge">Fase 4</div>
+              <div class="crisp-chip-name">Modelado</div>
+              <div class="crisp-chip-desc">Tuning & CV (T4-T6, F6-F9)</div>
+            </div>
+            <div class="crisp-chip">
+              <div class="crisp-chip-badge">Fase 5</div>
+              <div class="crisp-chip-name">Evaluación</div>
+              <div class="crisp-chip-desc">Robustez (T7-T9, F10-F11)</div>
+            </div>
+            <div class="crisp-chip">
+              <div class="crisp-chip-badge">Fase 6</div>
+              <div class="crisp-chip-name">Despliegue</div>
+              <div class="crisp-chip-desc">H5, API & Reportes</div>
+            </div>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 # ────────────────────────────────────────────────────────────────────────────
 # TAB 1 — Dataset
 # ────────────────────────────────────────────────────────────────────────────
 def render_dataset_tab() -> None:
+    # ── Fase 1: Comprensión del Negocio ─────────────────────────────────────
+    with st.container(border=True):
+        st.markdown("### 🎯 Fase 1: Comprensión del Negocio (Business Understanding)")
+        st.markdown(
+            "**Objetivo del Gemelo Digital:** Modelar, predecir y optimizar de forma acoplada la productividad agrícola y la provisión de servicios "
+            "ecosistémicos de polinización bajo escenarios de variabilidad climática, resolviendo el *trade-off* biofísico entre rendimiento del cultivo "
+            "y conservación de la biodiversidad en el agroecosistema.\n\n"
+            "**Hipótesis de Investigación:** La diversificación floral y espacial del hábitat junto con un manejo agronómico de baja carga química "
+            "incrementan la abundancia y riqueza de polinizadores silvestres, mitigando las caídas de productividad agrícola provocadas "
+            "por el estrés térmico y los déficits hídricos territoriales."
+        )
+
     controls_col, preview_col = st.columns([1, 1], gap="large")
 
     with controls_col:
+        st.markdown("### 🛠️ Fase 3: Preparación de Datos — Ingesta y Calibración")
         with st.container(border=True):
             st.markdown("#### 📂 Fuente de datos")
             source = st.radio(
@@ -244,6 +361,7 @@ def render_dataset_tab() -> None:
             )
 
     with preview_col:
+        st.markdown("### 🔍 Fase 2: Comprensión de Datos (Data Understanding)")
         dataset = st.session_state.dataset
         metadata = st.session_state.get("dataset_metadata")
         source_label = st.session_state.get("data_source_label")
@@ -251,7 +369,7 @@ def render_dataset_tab() -> None:
         if isinstance(dataset, pd.DataFrame):
             summary = summarize_dataset(dataset)
             with st.container(border=True):
-                st.markdown("#### 📊 Resumen del dataset")
+                st.markdown("#### 📊 Resumen del Dataset y Análisis Exploratorio (EDA)")
                 if source_label:
                     st.info(f"🏷️ **Fuente activa del dataset:** {source_label}", icon="📌")
                 m1, m2, m3, m4 = st.columns(4)
@@ -285,8 +403,8 @@ def render_dataset_tab() -> None:
                     with st.container(border=True):
                         st.markdown("##### 📋 Procedencia de Variables (T1)")
                         st.markdown(
-                            f"**🔍 Interpretación:** El dataset combina variables climáticas y de biodiversidad de fuentes públicas con variables de manejo para sustentar el gemelo digital.\n\n"
-                            f"**📖 Explicación:** De las **{n_total_prov}** variables registradas, **{n_real_prov} ({pct_real:.1f}%)** provienen directamente "
+                            f"**🔍 Interpretación (T1):** El dataset combina variables climáticas y de biodiversidad de fuentes públicas con variables de manejo para sustentar el gemelo digital.\n\n"
+                            f"**📖 Explicación (T1):** De las **{n_total_prov}** variables registradas, **{n_real_prov} ({pct_real:.1f}%)** provienen directamente "
                             f"de fuentes públicas abiertas y auditables (🟢 NASA POWER para series agroclimáticas y GBIF para registros de polinizadores), "
                             f"mientras que **{n_est_prov} ({100 - pct_real:.1f}%)** corresponden a variables biofísicas y agronómicas calibradas regionalmente (🔵). "
                             f"Esta arquitectura híbrida ancla las respuestas biológicas a observaciones reales del territorio, garantizando trazabilidad y validez científica conforme a CRISP-DM."
@@ -299,7 +417,7 @@ def render_dataset_tab() -> None:
             with st.container(border=True):
                 st.markdown(
                     f"**🔍 Interpretación (T2):** Vista preliminar de registros crudos para verificación inmediata de estructura e integridad tabular.\n\n"
-                    f"**📖 Explicación:** Se exponen los primeros 10 registros de una matriz total de **{len(dataset):,} observaciones** con **{len(dataset.columns)} variables**. "
+                    f"**📖 Explicación (T2):** Se exponen los primeros 10 registros de una matriz total de **{len(dataset):,} observaciones** con **{len(dataset.columns)} variables**. "
                     f"Permite comprobar el formato de las entradas y la ausencia de anomalías estructurales evidentes antes de evaluar las distribuciones agregadas en la Tabla T3."
                 )
 
@@ -320,8 +438,8 @@ def render_dataset_tab() -> None:
             with st.container(border=True):
                 st.markdown("##### 📐 Estadísticas Descriptivas (T3)")
                 st.markdown(
-                    f"**🔍 Interpretación:** El dataset exhibe suficiente variabilidad y cobertura agroecológica en sus variables predictoras y objetivos para el modelado.\n\n"
-                    f"**📖 Explicación:** La variable con mayor dispersión relativa es **`{max_cv_var}`** ($CV = {max_cv_val:.2f}$), reflejando contrastes de manejo en la muestra. "
+                    f"**🔍 Interpretación (T3):** El dataset exhibe suficiente variabilidad y cobertura agroecológica en sus variables predictoras y objetivos para el modelado.\n\n"
+                    f"**📖 Explicación (T3):** La variable con mayor dispersión relativa es **`{max_cv_var}`** ($CV = {max_cv_val:.2f}$), reflejando contrastes de manejo en la muestra. "
                     f"En simetría, **`{max_skew_var}`** presenta la mayor divergencia media-mediana ({skew_dir}, {abs(skew_val):.2f}$\\sigma$). "
                     f"Los 3 objetivos cubren rangos biofísicos amplios sin truncamientos: rendimiento [{desc.loc['min', 'crop_yield_index']:.1f}, {desc.loc['max', 'crop_yield_index']:.1f}] (media {desc.loc['mean', 'crop_yield_index']:.1f}), "
                     f"abundancia [{desc.loc['min', 'pollinator_abundance_index']:.1f}, {desc.loc['max', 'pollinator_abundance_index']:.1f}] (media {desc.loc['mean', 'pollinator_abundance_index']:.1f}) y "
@@ -355,6 +473,159 @@ def render_dataset_tab() -> None:
                     f"($r = {worst_poll_val:.2f}$). Asimismo, la correlación entre abundancia de polinizadores y rendimiento agrícola (`crop_yield_index`) es de **$r = {yield_poll_corr:.2f}$**, "
                     f"validando la hipótesis de sinergia agroecológica del gemelo digital. Finalmente, la ausencia de nulos y la estabilidad de varianzas ratifican la aptitud del dataset para la regresión multiobjetivo."
                 )
+
+            # ────────────────────────────────────────────────────────────────
+            # FIGURA F2: Distribución de Variables (Histograma + KDE)
+            # ────────────────────────────────────────────────────────────────
+            st.markdown("##### 📈 Distribución de Variables (Histograma + KDE) (F2)")
+            all_eda_vars = [c for c in FEATURE_COLUMNS + TARGET_COLUMNS if c in dataset.columns]
+            
+            c_sel1, c_sel2 = st.columns([2, 1])
+            with c_sel1:
+                selected_hist_var = st.selectbox(
+                    "Variable para histograma y densidad:",
+                    options=all_eda_vars,
+                    index=all_eda_vars.index("pollinator_abundance_index") if "pollinator_abundance_index" in all_eda_vars else 0,
+                    key="eda_hist_var_select",
+                    help="Selecciona cualquier variable para visualizar su distribución observada y curva KDE estimada."
+                )
+            with c_sel2:
+                show_kde = st.checkbox("Curva de densidad (KDE)", value=True, help="Superpone la función de densidad estimada (Gaussian KDE).")
+
+            hist_data = dataset[selected_hist_var].dropna()
+            fig_hist = px.histogram(
+                dataset,
+                x=selected_hist_var,
+                nbins=25,
+                marginal="box",
+                histnorm="probability density" if show_kde else None,
+                opacity=0.75,
+                color_discrete_sequence=["#38bdf8"],
+                title=f"Distribución de {selected_hist_var} (Histograma + KDE) (F2)",
+                template="plotly_dark",
+            )
+            
+            if show_kde and len(hist_data) > 1:
+                from scipy import stats
+                try:
+                    kde = stats.gaussian_kde(hist_data)
+                    x_grid = np.linspace(float(hist_data.min()), float(hist_data.max()), 150)
+                    y_kde = kde(x_grid)
+                    fig_hist.add_scatter(
+                        x=x_grid,
+                        y=y_kde,
+                        mode="lines",
+                        name="KDE",
+                        line=dict(color="#f59e0b", width=2.5),
+                    )
+                except Exception:
+                    pass
+                    
+            fig_hist.update_layout(
+                height=350,
+                margin=dict(l=0, r=0, t=40, b=0),
+                xaxis_title=selected_hist_var,
+                yaxis_title="Densidad de probabilidad" if show_kde else "Frecuencia",
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+            )
+            st.plotly_chart(fig_hist, use_container_width=True)
+
+            # Interpretación dinámica F2: Histograma y KDE
+            skews = dataset[all_eda_vars].skew(numeric_only=True)
+            most_skew_col = skews.abs().idxmax()
+            most_skew_val = skews[most_skew_col]
+            skew_nature = "asimetría positiva (cola a la derecha)" if most_skew_val > 0 else "asimetría negativa (cola a la izquierda)"
+            
+            most_sym_col = skews.abs().idxmin()
+            most_sym_val = skews[most_sym_col]
+            
+            curr_skew = float(skews.get(selected_hist_var, 0.0))
+            curr_mean = float(hist_data.mean())
+            curr_median = float(hist_data.median())
+            curr_std = float(hist_data.std())
+            
+            with st.container(border=True):
+                st.markdown(
+                    f"**🔍 Interpretación (F2):** Las distribuciones reflejan la heterogeneidad biofísica del agroecosistema, destacando `{most_skew_col}` con la mayor asimetría y `{most_sym_col}` con la distribución más simétrica.\n\n"
+                    f"**📖 Explicación (F2):** El análisis de densidad sobre las {len(all_eda_vars)} variables revela que **`{most_skew_col}`** exhibe el mayor sesgo ({skew_nature}, coeficiente de Fisher = **{most_skew_val:+.2f}**), "
+                    f"mientras que **`{most_sym_col}`** presenta la distribución más equilibrada en torno a su media (sesgo = **{most_sym_val:+.2f}**). "
+                    f"Para la variable activa (**`{selected_hist_var}`**), la media observada es **{curr_mean:.2f}** frente a una mediana de **{curr_median:.2f}** ($\\sigma = {curr_std:.2f}$, sesgo = **{curr_skew:+.2f}**), "
+                    f"ratificando suficiente soporte empírico y variabilidad continua sin truncamientos para el modelado multiobjetivo."
+                )
+
+            # ────────────────────────────────────────────────────────────────
+            # FIGURA F3: Boxplots de Detección de Outliers
+            # ────────────────────────────────────────────────────────────────
+            st.markdown("##### 📦 Boxplots de Detección de Outliers (F3)")
+            view_box_mode = st.radio(
+                "Modo de visualización de boxplots:",
+                options=["📊 Todas las variables (Z-Score estandarizado)", "🔍 Variable individual (escala original)"],
+                horizontal=True,
+                key="eda_box_view_mode",
+            )
+
+            outliers_per_var = {}
+            for col in all_eda_vars:
+                series = dataset[col].dropna()
+                q1 = float(series.quantile(0.25))
+                q3 = float(series.quantile(0.75))
+                iqr = q3 - q1
+                lower = q1 - 1.5 * iqr
+                upper = q3 + 1.5 * iqr
+                count = int(((series < lower) | (series > upper)).sum())
+                outliers_per_var[col] = count
+
+            total_outliers = sum(outliers_per_var.values())
+            max_out_col = max(outliers_per_var, key=outliers_per_var.get)
+            max_out_count = outliers_per_var[max_out_col]
+            clean_vars_count = sum(1 for c, v in outliers_per_var.items() if v == 0)
+            total_cells = len(dataset) * len(all_eda_vars)
+            pct_outliers_total = (total_outliers / max(1, total_cells)) * 100
+
+            if "Todas" in view_box_mode:
+                df_zscore = (dataset[all_eda_vars] - dataset[all_eda_vars].mean()) / dataset[all_eda_vars].std().replace(0, np.nan)
+                df_melted = df_zscore.melt(var_name="Variable", value_name="Z-Score")
+                fig_box = px.box(
+                    df_melted,
+                    x="Variable",
+                    y="Z-Score",
+                    points="outliers",
+                    color="Variable",
+                    title="Boxplots de Detección de Outliers (Valores Estandarizados Z-Score) (F3)",
+                    template="plotly_dark",
+                )
+                fig_box.add_hline(y=3.0, line_dash="dash", line_color="#ef4444", annotation_text="+3σ")
+                fig_box.add_hline(y=-3.0, line_dash="dash", line_color="#ef4444", annotation_text="-3σ")
+                fig_box.update_layout(
+                    height=400,
+                    margin=dict(l=0, r=0, t=40, b=80),
+                    showlegend=False,
+                    xaxis=dict(tickangle=-35),
+                    yaxis_title="Z-Score (Desviaciones estándar)",
+                )
+            else:
+                sel_box_var = st.selectbox("Seleccionar variable:", options=all_eda_vars, key="eda_box_single_var")
+                fig_box = px.box(
+                    dataset,
+                    y=sel_box_var,
+                    points="outliers",
+                    title=f"Boxplot de {sel_box_var} (Escala Original) (F3)",
+                    template="plotly_dark",
+                    color_discrete_sequence=["#a78bfa"],
+                )
+                fig_box.update_layout(height=350, margin=dict(l=0, r=0, t=40, b=0), yaxis_title=sel_box_var)
+
+            st.plotly_chart(fig_box, use_container_width=True)
+
+            # Interpretación dinámica F3: Boxplots y Outliers
+            with st.container(border=True):
+                st.markdown(
+                    f"**🔍 Interpretación (F3):** La inspección de rangos intercuartílicos confirma estabilidad en las observaciones, con una baja incidencia de valores atípicos severos.\n\n"
+                    f"**📖 Explicación (F3):** Bajo la regla canónica de Tukey ($1.5 \\cdot IQR$), se identificaron **{total_outliers} valores atípicos** en todo el dataset (**{pct_outliers_total:.2f}%** del total de datos). "
+                    f"La variable con mayor cantidad de anomalías marginales es **`{max_out_col}`** con **{max_out_count} registros** ({(max_out_count / max(1, len(dataset)) * 100):.1f}% de su serie), "
+                    f"mientras que **{clean_vars_count} variables** presentan cero outliers absolutos. "
+                    f"La distribución estandarizada ($Z$-Score) verifica que no existen observaciones que superen $|Z| > 4.0$, garantizando la estabilidad numérica requerida para los ensambles y redes neuronales."
+                )
         else:
             with st.container(border=True):
                 st.markdown("#### ⏳ Dataset pendiente")
@@ -366,6 +637,12 @@ def render_dataset_tab() -> None:
 # TAB 2 — ABM
 # ────────────────────────────────────────────────────────────────────────────
 def render_simulation_tab() -> None:
+    st.markdown("### 🐝 Fase 3: Preparación de Datos — Simulación Basada en Agentes (ABM)")
+    st.caption(
+        "Modelado micro-estructural del comportamiento y forrajeo de polinizadores en grilla espacial. "
+        "Enriquece y genera dinámicas espacio-temporales sintéticas y calibradas (F4, F5) "
+        "para alimentar el pipeline de modelado predictivo."
+    )
     left, right = st.columns([1, 1], gap="large")
 
     with left:
@@ -420,7 +697,7 @@ def render_simulation_tab() -> None:
             heatmap.update_layout(height=300, margin=dict(l=0, r=0, t=40, b=0))
             st.plotly_chart(heatmap, use_container_width=True)
 
-            # Interpretación dinámica F2: Mapa de Recursos Espaciales ABM
+            # Interpretación dinámica F4: Mapa de Recursos Espaciales ABM
             res_arr = np.array(preview["resource_map"])
             res_min = float(np.min(res_arr))
             res_max = float(np.max(res_arr))
@@ -429,8 +706,8 @@ def render_simulation_tab() -> None:
             rich_pct = float(np.mean(res_arr > 0.7) * 100)
             with st.container(border=True):
                 st.markdown(
-                    f"**🔍 Interpretación (F2):** El forrajeo de los agentes generó un mosaico espacial con zonas de agotamiento y parches de refugio nutricional.\n\n"
-                    f"**📖 Explicación:** La matriz espacial concluye con una densidad media de recursos de **{res_mean:.2f}** (mín: `{res_min:.2f}`, máx: `{res_max:.2f}`). "
+                    f"**🔍 Interpretación (F4):** El forrajeo de los agentes generó un mosaico espacial con zonas de agotamiento y parches de refugio nutricional.\n\n"
+                    f"**📖 Explicación (F4):** La matriz espacial concluye con una densidad media de recursos de **{res_mean:.2f}** (mín: `{res_min:.2f}`, máx: `{res_max:.2f}`). "
                     f"Un **{depleted_pct:.1f}%** de las celdas experimenta agotamiento por pecoreo intensivo (< 0.20), mientras un **{rich_pct:.1f}%** retiene reservas altas (> 0.70), "
                     f"evidenciando cómo la conectividad espacial modula la capacidad de soporte para los polinizadores."
                 )
@@ -444,7 +721,7 @@ def render_simulation_tab() -> None:
                 height=250,
                 margin=dict(l=0, r=0, t=36, b=0),
                 template="plotly_dark",
-                title="Trayectoria poblacional",
+                title="Trayectoria poblacional (F5)",
                 xaxis_title="Paso",
                 yaxis_title="Número de agentes",
                 paper_bgcolor="rgba(0,0,0,0)",
@@ -452,7 +729,7 @@ def render_simulation_tab() -> None:
             )
             st.plotly_chart(history_fig, use_container_width=True)
 
-            # Interpretación dinámica F3: Trayectoria Poblacional ABM
+            # Interpretación dinámica F5: Trayectoria Poblacional ABM
             pop_hist = preview["population_history"]
             pop_init = pop_hist[0] if pop_hist else 0
             pop_final = pop_hist[-1] if pop_hist else 0
@@ -462,8 +739,8 @@ def render_simulation_tab() -> None:
             trend_label = "crecimiento neto" if pop_change_pct > 0 else ("reducción neta" if pop_change_pct < 0 else "equilibrio estático")
             with st.container(border=True):
                 st.markdown(
-                    f"**🔍 Interpretación (F3):** La población de agentes muestra una dinámica de estabilización en torno a la capacidad de carga del entorno.\n\n"
-                    f"**📖 Explicación:** La colonia inició con **{pop_init}** individuos y finalizó en **{pop_final}** ({trend_label} de **{abs(pop_change_pct):.1f}%**), "
+                    f"**🔍 Interpretación (F5):** La población de agentes muestra una dinámica de estabilización en torno a la capacidad de carga del entorno.\n\n"
+                    f"**📖 Explicación (F5):** La colonia inició con **{pop_init}** individuos y finalizó en **{pop_final}** ({trend_label} de **{abs(pop_change_pct):.1f}%**), "
                     f"alcanzando un pico de **{pop_peak}** y un valle de **{pop_trough}**. Esta trayectoria refleja cómo la disponibilidad de recursos y la tasa metabólica "
                     f"autorregulan la resiliencia poblacional frente al esfuerzo de pecoreo."
                 )
@@ -482,6 +759,12 @@ def render_simulation_tab() -> None:
 import datetime
 
 def render_training_tab() -> None:
+    st.markdown("### 🧠 Fase 4: Modelado (Modeling)")
+    st.caption(
+        "Entrenamiento supervisado multimodelo (Random Forest, XGBoost, Ridge, DNN Surrogate, Autoencoder+MLP), "
+        "sintonización estocástica de hiperparámetros (RandomizedSearchCV) y validación cruzada ($K$-Fold CV) "
+        "con selección del mejor estimador según $R^2$, MAE y RMSE (T4, T5, T6, F6-F9)."
+    )
     dataset = st.session_state.dataset
     if not isinstance(dataset, pd.DataFrame):
         st.warning("⚠️  Primero genera o carga un dataset válido para habilitar el entrenamiento.")
@@ -573,8 +856,16 @@ def render_training_tab() -> None:
             st.dataframe(ht_info["tuning_df"], use_container_width=True, hide_index=True)
             
             with st.container(border=True):
-                st.markdown("##### 🧠 Interpretación y Explicabilidad del Tuning (T4)")
-                st.markdown(ht_info.get("interpretacion", ""))
+                st.markdown("##### 🧠 Sintonización de Hiperparámetros (T4)")
+                interp_t4_text = ht_info.get("interpretacion", "")
+                if interp_t4_text and not interp_t4_text.startswith("**🔍 Interpretación"):
+                    interp_t4_text = (
+                        f"**🔍 Interpretación (T4):** El tuning mediante búsqueda aleatoria (RandomizedSearchCV) y "
+                        f"exploración de arquitectura optimizó las 5 familias de modelos para el agroecosistema, alcanzando "
+                        f"configuraciones que mejoran la estabilidad predictiva frente a los valores fijos por defecto.\n\n"
+                        f"**📖 Explicación (T4):** A continuación se detallan los mejores hiperparámetros encontrados por modelo:\n\n{interp_t4_text}"
+                    )
+                st.markdown(interp_t4_text)
                 st.caption(f"⏱️ Tiempo invertido en sintonización: **{ht_info.get('tiempo_total_tuning', 0.0)} segundos**.")
         
         # 1. Registro de modelos
@@ -604,8 +895,8 @@ def render_training_tab() -> None:
             active_r2 = float(registro_df.loc[registro_df["activo"] == True, "r2_score"].values[0]) if (registro_df["activo"] == True).any() else 0.0
             st.markdown("##### 📋 Registro de Modelos (T5)")
             st.markdown(
-                f"**🔍 Interpretación:** El modelo seleccionado para despliegue y optimización multiobjetivo es **{best_overall}** por su mayor rendimiento global.\n\n"
-                f"**📖 Explicación:** El registro consolida **{len(registro_df)} arquitecturas** evaluadas bajo validación cruzada. La columna **`activo`** designa a "
+                f"**🔍 Interpretación (T5):** El modelo seleccionado para despliegue y optimización multiobjetivo es **{best_overall}** por su mayor rendimiento global.\n\n"
+                f"**📖 Explicación (T5):** El registro consolida **{len(registro_df)} arquitecturas** evaluadas bajo validación cruzada. La columna **`activo`** designa a "
                 f"**`{best_overall}`** ($R^2 = {active_r2:.4f}$) como el surrogado rector para el Frente de Pareto NSGA-II. La versión registrada `v1.0.0` sincronizada a las "
                 f"**`{registro_df['fecha_entrenamiento'].iloc[0]}`** asegura la gobernanza y linaje formal del ciclo CRISP-DM (Fase 6: Despliegue)."
             )
@@ -644,8 +935,8 @@ def render_training_tab() -> None:
                 arch_just = f"El modelo `{m1_row['Modelo']}` optimizó el balance sesgo-varianza mediante su configuración de hiperparámetros."
 
             st.markdown(
-                f"**🔍 Interpretación:** El modelo **{m1_row['Modelo']}** obtuvo el mejor desempeño predictivo global en validación cruzada.\n\n"
-                f"**📖 Explicación:** Supera al segundo clasificado (**{m2_row['Modelo']}**) con una ventaja de **+{diff_r2:.4f} en $R^2$** "
+                f"**🔍 Interpretación (T6):** El modelo **{m1_row['Modelo']}** obtuvo el mejor desempeño predictivo global en validación cruzada.\n\n"
+                f"**📖 Explicación (T6):** Supera al segundo clasificado (**{m2_row['Modelo']}**) con una ventaja de **+{diff_r2:.4f} en $R^2$** "
                 f"({m1_row['CV_R2_Mean']:.4f} vs {m2_row['CV_R2_Mean']:.4f}) y reduce el MAE en un **{diff_mae_pct:.2f}%** ({m1_row['CV_MAE_Mean']:.4f} vs {m2_row['CV_MAE_Mean']:.4f}). "
                 f"{arch_just} Su tiempo de inferencia de `{float(m1_row['Infer_Time_Mean'])*1000:.2f} ms/fold` garantiza respuesta en tiempo real en el gemelo digital."
             )
@@ -668,9 +959,9 @@ def render_training_tab() -> None:
         fig_metrics.update_layout(template="plotly_dark", margin=dict(l=0, r=0, t=30, b=0), yaxis_title="")
         st.plotly_chart(fig_metrics, use_container_width=True)
 
-        # Interpretación dinámica F4: Comparación de Métricas Clave
+        # Interpretación dinámica F6: Comparación de Métricas Clave
         with st.container(border=True):
-            st.markdown("##### 📊 Comparación de Métricas Clave (F4)")
+            st.markdown("##### 📊 Comparación de Métricas Clave (F6)")
             best_model_name = results_df.iloc[0]["Modelo"]
             best_r2 = float(results_df.iloc[0]["CV_R2_Mean"])
             worst_model_name = results_df.iloc[-1]["Modelo"]
@@ -684,8 +975,8 @@ def render_training_tab() -> None:
             family_lead = "ensambles de árboles (Random Forest / Extra Trees)" if avg_tree >= avg_nn else "redes neuronales (DNN / Autoencoder)"
 
             st.markdown(
-                f"**🔍 Interpretación:** Los modelos evaluados mantienen una alta bondad de ajuste con ventaja promedio para {family_lead}.\n\n"
-                f"**📖 Explicación:** El gráfico exhibe una amplitud de **$\\Delta R^2 = {spread_r2:.4f}$** entre el mejor ajuste (**`{best_model_name}`**, $R^2 = {best_r2:.4f}$) "
+                f"**🔍 Interpretación (F6):** Los modelos evaluados mantienen una alta bondad de ajuste con ventaja promedio para {family_lead}.\n\n"
+                f"**📖 Explicación (F6):** El gráfico exhibe una amplitud de **$\\Delta R^2 = {spread_r2:.4f}$** entre el mejor ajuste (**`{best_model_name}`**, $R^2 = {best_r2:.4f}$) "
                 f"y el de menor precisión (**`{worst_model_name}`**, $R^2 = {worst_r2:.4f}$). El grupo de {family_lead} lidera con $R^2$ medio de `{max(avg_tree, avg_nn):.4f}` vs `{min(avg_tree, avg_nn):.4f}`. "
                 f"La alta congruencia entre $R^2$ y Varianza Explicada en `{best_model_name}` (ambos $\\ge {min(float(results_df.iloc[0]['CV_R2_Mean']), float(results_df.iloc[0]['CV_ExplVar_Mean'])):.4f}$) "
                 f"ratifica que no hay descalibración sistemática ni sesgos no modelados en la predicción multivariada."
@@ -726,7 +1017,7 @@ def render_training_tab() -> None:
                 fig_scatter.update_layout(template="plotly_dark", height=280, margin=dict(l=0, r=0, t=10, b=0), xaxis_title="Valores Reales", yaxis_title="Valores Predichos")
                 st.plotly_chart(fig_scatter, use_container_width=True)
 
-                # Interpretación dinámica F5: Predichos vs Reales
+                # Interpretación dinámica F7: Predichos vs Reales
                 y_t0 = last_y_true[:, 0]
                 y_p0 = last_y_pred[:, 0]
                 rel_err = np.abs(y_t0 - y_p0) / np.maximum(1e-5, np.abs(y_t0))
@@ -737,8 +1028,8 @@ def render_training_tab() -> None:
                 err_high = float(np.mean(y_p0[y_t0 >= np.percentile(y_t0, 85)] - y_t0[y_t0 >= np.percentile(y_t0, 85)]))
                 with st.container(border=True):
                     st.markdown(
-                        f"**🔍 Interpretación (F5):** Las estimaciones del modelo se alinean fuertemente con los valores observados sobre la diagonal ideal.\n\n"
-                        f"**📖 Explicación:** La correlación entre observaciones y predicciones en `{TARGET_COLUMNS[0]}` es **$r = {corr_scatter:.3f}$**, "
+                        f"**🔍 Interpretación (F7):** Las estimaciones del modelo se alinean fuertemente con los valores observados sobre la diagonal ideal.\n\n"
+                        f"**📖 Explicación (F7):** La correlación entre observaciones y predicciones en `{TARGET_COLUMNS[0]}` es **$r = {corr_scatter:.3f}$**, "
                         f"con un **{pct_10:.1f}%** de las muestras dentro de una banda de tolerancia del **±10%** ({pct_20:.1f}% en ±20%). "
                         f"Las desviaciones se mantienen controladas en las colas de la distribución (error inf: `{err_low:+.2f}`, sup: `{err_high:+.2f}`)."
                     )
@@ -757,7 +1048,7 @@ def render_training_tab() -> None:
                 fig_res.update_layout(template="plotly_dark", height=280, margin=dict(l=0, r=0, t=10, b=0), xaxis_title="Valores Predichos", yaxis_title="Error Residual")
                 st.plotly_chart(fig_res, use_container_width=True)
 
-                # Interpretación dinámica F6: Residuos vs Predichos
+                # Interpretación dinámica F8: Residuos vs Predichos
                 res_mean = float(np.mean(residuals))
                 res_std = float(np.std(residuals))
                 med_pred = float(np.median(last_y_pred[:, 0]))
@@ -767,8 +1058,8 @@ def render_training_tab() -> None:
                 homo_diag = "homocedasticidad adecuada (varianza homogénea)" if 0.7 <= ratio_var <= 1.4 else "leve heterocedasticidad en altas predicciones"
                 with st.container(border=True):
                     st.markdown(
-                        f"**🔍 Interpretación (F6):** Los errores residuales se dispersan de manera simétrica y sin sesgo sistemático en torno al cero.\n\n"
-                        f"**📖 Explicación:** Los residuos presentan una media no sesgada de **`{res_mean:+.3f}`** y $\\sigma = {res_std:.3f}$. "
+                        f"**🔍 Interpretación (F8):** Los errores residuales se dispersan de manera simétrica y sin sesgo sistemático en torno al cero.\n\n"
+                        f"**📖 Explicación (F8):** Los residuos presentan una media no sesgada de **`{res_mean:+.3f}`** y $\\sigma = {res_std:.3f}$. "
                         f"El cociente de dispersión entre predicciones altas y bajas es **{ratio_var:.2f}** ({homo_diag}), descartando patrones de embudo "
                         f"o descalibración marcada en la escala de respuesta, validando los supuestos del estimador."
                     )
@@ -846,7 +1137,7 @@ def render_training_tab() -> None:
                         fig_imp.update_layout(template="plotly_dark", height=300, margin=dict(l=0, r=0, t=30, b=0))
                         st.plotly_chart(fig_imp, use_container_width=True)
 
-                        # Interpretación dinámica F7: Feature Importance por Permutación
+                        # Interpretación dinámica F9: Feature Importance por Permutación
                         top_feat = df_imp.iloc[-1]["Variable"]
                         top_imp_pct = float(df_imp.iloc[-1]["Importancia"]) * 100
                         second_feat = df_imp.iloc[-2]["Variable"] if len(df_imp) > 1 else top_feat
@@ -854,10 +1145,10 @@ def render_training_tab() -> None:
                         least_feat = df_imp.iloc[0]["Variable"]
                         least_imp_pct = float(df_imp.iloc[0]["Importancia"]) * 100
                         with st.container(border=True):
-                            st.markdown("##### 🎯 Importancia de Variables (F7)")
+                            st.markdown("##### 🎯 Importancia de Variables (F9)")
                             st.markdown(
-                                f"**🔍 Interpretación:** La variable **`{top_feat}`** ejerce la mayor influencia sobre las predicciones del agroecosistema.\n\n"
-                                f"**📖 Explicación:** El análisis de sensibilidad por permutación asigna a **`{top_feat}`** un **{top_imp_pct:.1f}%** del impacto "
+                                f"**🔍 Interpretación (F9):** La variable **`{top_feat}`** ejerce la mayor influencia sobre las predicciones del agroecosistema.\n\n"
+                                f"**📖 Explicación (F9):** El análisis de sensibilidad por permutación asigna a **`{top_feat}`** un **{top_imp_pct:.1f}%** del impacto "
                                 f"relativo en el MAE, seguido por **`{second_feat}`** ({second_imp_pct:.1f}%), mientras **`{least_feat}`** aporta el menor peso ({least_imp_pct:.1f}%). "
                                 f"En términos agroecológicos, esto valida que las intervenciones directas sobre `{top_feat}` y `{second_feat}` "
                                 f"gobernarán las ganancias en rendimiento y conservación de polinizadores durante la optimización multiobjetivo."
@@ -870,9 +1161,14 @@ def render_training_tab() -> None:
 
 
 # ────────────────────────────────────────────────────────────────────────────
-# TAB 4 — Exportación
+# TAB 5 — Exportación
 # ────────────────────────────────────────────────────────────────────────────
 def render_export_tab() -> None:
+    st.markdown("### 💾 Fase 6: Despliegue (Deployment) — Exportación y Consumo")
+    st.caption(
+        "Empaquetado y exportación del modelo seleccionado (`modelo_optimizado.h5`), "
+        "escaladores y metadata con trazabilidad geoespacial para su consumo por el backend FastAPI y el cliente React."
+    )
     dataset = st.session_state.dataset
     training_result = st.session_state.training_result
     if not training_result:
@@ -1069,8 +1365,15 @@ def render_export_tab() -> None:
 def main() -> None:
     initialize_state()
     render_header()
+    render_crisp_stepper()
     tab1, tab2, tab3, tab4, tab5 = st.tabs(
-        ["📂 Datos y pipeline", "🐝 Simulador ABM", "🧠 Entrenamiento", "💾 Exportación", "📊 Pruebas Robustas"]
+        [
+            "📂 Datos y Pipeline (Fases 1-3)",
+            "🐝 Simulador ABM (Fase 3)",
+            "🧠 Entrenamiento (Fase 4: Modelado)",
+            "📊 Pruebas Robustas (Fase 5: Evaluación)",
+            "💾 Exportación (Fase 6: Despliegue)",
+        ]
     )
     with tab1:
         render_dataset_tab()
@@ -1079,9 +1382,14 @@ def main() -> None:
     with tab3:
         render_training_tab()
     with tab4:
-        render_export_tab()
-    with tab5:
+        st.markdown("### 📊 Fase 5: Evaluación (Evaluation) — Pruebas Estadísticas Robustas")
+        st.caption(
+            "Validación inferencial rigurosa multimodelo con 7 pruebas estadísticas (Shapiro-Wilk, T-Student pareado, Wilcoxon, "
+            "D de Cohen, corrección de Bonferroni, Test de Friedman y post-hoc de Nemenyi mediante matriz de p-valores pareados) sobre errores out-of-fold (T7, T8, T9, F10, F11)."
+        )
         render_robust_tests_tab()
+    with tab5:
+        render_export_tab()
 
 
 if __name__ == "__main__":

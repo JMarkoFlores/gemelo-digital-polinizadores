@@ -366,18 +366,29 @@ def tune_all_hyperparameters(
     ]
     summary_df = pd.DataFrame(summary_rows)
 
-    # Generación de interpretación objetiva y explicabilidad
-    interpretation = (
-        f"- **Random Forest:** La búsqueda estocástica optimizó la arquitectura del ensamble en "
+    # Generación de interpretación objetiva y explicabilidad homologada (T4)
+    interp_t4 = (
+        "El tuning mediante búsqueda aleatoria (RandomizedSearchCV) y exploración de arquitectura "
+        "optimizó las 5 familias de modelos para el agroecosistema, alcanzando configuraciones que "
+        "mejoran el balance sesgo-varianza y la estabilidad predictiva frente a los valores fijos por defecto."
+    )
+    explic_t4 = (
+        f"A continuación se detallan los mejores hiperparámetros encontrados por modelo junto con su score CV de validación:\n\n"
+        f"- **Random Forest (Tradicional):** La búsqueda estocástica optimizó la arquitectura del ensamble en "
         f"`n_estimators={rf_best['n_estimators']}` y `max_depth={rf_best['max_depth']}` ($R^2={rf_score:.4f}$). "
-        f"Esta profundidad acotada evita la memorización de ruido local y controla el sobreajuste observador en árboles ilimitados.\n"
-        f"- **XGBoost:** La tasa de aprendizaje `learning_rate={xgb_best['learning_rate']}` junto con `max_depth={xgb_best['max_depth']}` "
+        f"Esta profundidad acotada evita la memorización de ruido local y controla el sobreajuste observado en árboles ilimitados.\n"
+        f"- **XGBoost (Tradicional):** La tasa de aprendizaje `learning_rate={xgb_best['learning_rate']}` junto con `max_depth={xgb_best['max_depth']}` "
         f"($R^2={xgb_score:.4f}$) garantiza una convergencia controlada de los árboles de regresión aditivos sin oscilaciones en los residuos.\n"
-        f"- **Ridge Regression:** La penalización L2 óptima con `alpha={ridge_best['alpha']}` ($R^2={ridge_score:.4f}$) estabiliza los coeficientes "
+        f"- **Ridge Regression (Tradicional):** La penalización L2 óptima con `alpha={ridge_best['alpha']}` ($R^2={ridge_score:.4f}$) estabiliza los coeficientes "
         f"lineales mitigando la colinealidad intrínseca entre las variables de temperatura, precipitación y diversidad vegetal.\n"
-        f"- **Modelos Neuronales Híbridos:** La DNN Surrogate alcanzó su mejor desempeño con topología `{best_dnn_cfg['hidden_units']}` "
-        f"y tasa `{best_dnn_cfg['learning_rate']}` ($R^2={best_dnn_score:.4f}$), mientras que el Autoencoder+MLP optimizó la compresión en "
-        f"`latent_dim={best_ae_cfg['latent_dim']}` ($R^2={best_ae_score:.4f}$), confirmando que la reducción no lineal preserva las relaciones ecológicas clave."
+        f"- **DNN Surrogate (Híbrido):** La red profunda alcanzó su mejor desempeño con topología `{best_dnn_cfg['hidden_units']}`, "
+        f"dropout `{best_dnn_cfg['dropout_rate']}` y tasa `{best_dnn_cfg['learning_rate']}` ($R^2={best_dnn_score:.4f}$), modelando las no linealidades agroclimáticas complejas.\n"
+        f"- **Autoencoder+MLP (Híbrido):** El modelo híbrido optimizó la compresión en `latent_dim={best_ae_cfg['latent_dim']}` "
+        f"y `{best_ae_cfg['regressor_units']}` unidades en el regresor ($R^2={best_ae_score:.4f}$), confirmando que la reducción no lineal preserva las relaciones ecológicas clave."
+    )
+    interpretation = (
+        f"**🔍 Interpretación (T4):** {interp_t4}\n\n"
+        f"**📖 Explicación (T4):** {explic_t4}"
     )
 
     return {

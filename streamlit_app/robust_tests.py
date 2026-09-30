@@ -22,7 +22,7 @@ def render_robust_tests_tab() -> None:
     results_df = training_result["results_df"]
     best_model_name = training_result["best_overall"]
     
-    st.markdown("### Validación con Pruebas Estadísticas Robustas")
+    st.markdown("#### 🔬 Protocolo de Pruebas Estadísticas e Inferenciales")
     st.write(
         f"Para validar estadísticamente el rendimiento, se utiliza el modelo ganador (**{best_model_name}**) "
         "como 'Modelo Propuesto' (baseline de comparación). A continuación, se aplican pruebas estadísticas "
@@ -179,7 +179,7 @@ def render_robust_tests_tab() -> None:
             f"El modelo baseline ({best_model_name}) presenta diferencias estadísticamente significativas frente a modelos competidores."
         )
         explic_pareadas = " ".join(interpretations_b1) + f" (Umbral de significancia corregido por Bonferroni: $\\alpha_{{adj}} = {alpha_bonf:.4f}$)."
-        st.markdown(f"**🔍 Interpretación:** {interp_pareadas}\n\n**📖 Explicación:** {explic_pareadas}")
+        st.markdown(f"**🔍 Interpretación (T7):** {interp_pareadas}\n\n**📖 Explicación (T7):** {explic_pareadas}")
     st.session_state["interpretacion_b1"] = f"{interp_pareadas} {explic_pareadas}"
     
     st.markdown("#### Resultado Final Global")
@@ -231,7 +231,7 @@ def render_robust_tests_tab() -> None:
                 )
 
         # -------------------------------------------------------------
-        # T8 & F9: Rangos Promedio por Modelo (Test de Friedman)
+        # T8 & F10: Rangos Promedio por Modelo (Test de Friedman)
         # -------------------------------------------------------------
         data_folds = np.array(all_fold_maes).T
         ranks_matrix = np.array([stats.rankdata(row) for row in data_folds])
@@ -248,6 +248,16 @@ def render_robust_tests_tab() -> None:
         st.markdown("##### 📋 Tabla de Rangos Promedio por Modelo (Test de Friedman) (T8)")
         st.dataframe(df_friedman_ranks.style.format({"Rango Promedio": "{:.2f}"}), use_container_width=True, hide_index=True)
 
+        top_ranked_model = df_friedman_ranks.iloc[0]["Modelo"]
+        top_rank_val = df_friedman_ranks.iloc[0]["Rango Promedio"]
+        with st.container(border=True):
+            st.markdown("##### 📋 Interpretación de Rangos de Error (T8)")
+            st.markdown(
+                f"**🔍 Interpretación (T8):** El ordenamiento jerárquico por rangos promedio posiciona a **{top_ranked_model}** con el menor rango de error acumulado entre folds.\n\n"
+                f"**📖 Explicación (T8):** En la prueba no paramétrica de Friedman, cada fold asigna un rango del 1 al {len(model_names)} a cada arquitectura (menor rango = menor error absoluto). "
+                f"La tabla consolida el rango medio observado, donde **`{top_ranked_model}`** lidera con un rango promedio de **{top_rank_val:.2f}**, seguido por las demás configuraciones en orden ordinal de consistencia inter-bloque."
+            )
+
         fig_friedman = px.bar(
             df_friedman_ranks,
             x="Modelo",
@@ -255,7 +265,7 @@ def render_robust_tests_tab() -> None:
             color="Rango Promedio",
             color_continuous_scale="Blues_r",
             text="Rango Promedio",
-            title="Rangos Promedio de Error por Modelo (Test de Friedman) (F9)",
+            title="Rangos Promedio de Error por Modelo (Test de Friedman) (F10)",
             template="plotly_dark",
             labels={"Rango Promedio": "Rango Promedio (menor = mejor)", "Modelo": "Modelo de IA"}
         )
@@ -264,7 +274,7 @@ def render_robust_tests_tab() -> None:
         st.plotly_chart(fig_friedman, use_container_width=True)
 
         with st.container(border=True):
-            st.markdown("##### 🌐 Análisis de Varianza Global (Test de Friedman)")
+            st.markdown("##### 🌐 Análisis de Varianza Global (Test de Friedman) (F10)")
             interp_friedman = (
                 "El conjunto de modelos exhibe un rendimiento global estadísticamente equivalente sin divergencias significativas."
                 if p_val_f >= 0.05 else
@@ -274,7 +284,7 @@ def render_robust_tests_tab() -> None:
                 f"El Test de Friedman sobre los errores por fold arroja un estadístico $\\chi^2_F = {stat_f:.2f}$ con **p-valor = {p_val_f:.4e}** (umbral $\\alpha = 0.05$). "
                 f"Evalúa simultáneamente si las funciones de distribución de error de los {len(model_names)} modelos difieren entre sí. {friedman_conclusion}"
             )
-            st.markdown(f"**🔍 Interpretación:** {interp_friedman}\n\n**📖 Explicación:** {explic_friedman}")
+            st.markdown(f"**🔍 Interpretación (F10):** {interp_friedman}\n\n**📖 Explicación (F10):** {explic_friedman}")
         st.session_state["interpretacion_friedman"] = f"{interp_friedman} {explic_friedman}"
         
         # Análisis Post-hoc (Nemenyi)
@@ -301,12 +311,20 @@ def render_robust_tests_tab() -> None:
             st.markdown("##### 📋 Matriz de p-valores Post-Hoc de Nemenyi (T9)")
             st.dataframe(nemenyi_pvals.style.format("{:.4f}"), use_container_width=True)
 
-            # Render Heatmap (F8)
+            with st.container(border=True):
+                st.markdown("##### 📋 Análisis de Matriz de Comparaciones Múltiples (T9)")
+                st.markdown(
+                    f"**🔍 Interpretación (T9):** La matriz simétrica de p-valores de Nemenyi cuantifica la significancia estadística pareada controlando la tasa de error por familia de comparaciones.\n\n"
+                    f"**📖 Explicación (T9):** Cada celda $(i, j)$ reporta el p-valor ajustado de la diferencia de rangos entre el modelo $i$ y el modelo $j$. "
+                    f"Valores de $p < 0.05$ confirman divergencia estadística robusta entre pares tras rechazar la hipótesis nula global de Friedman."
+                )
+
+            # Render Heatmap (F11)
             fig_nemenyi = px.imshow(
                 nemenyi_pvals,
                 text_auto=".3f",
                 color_continuous_scale="RdBu_r",
-                title="Matriz de p-valores (Test de Nemenyi) (F8)",
+                title="Matriz de p-valores (Test de Nemenyi) (F11)",
                 template="plotly_dark",
                 labels=dict(color="p-valor")
             )
@@ -314,8 +332,8 @@ def render_robust_tests_tab() -> None:
             st.plotly_chart(fig_nemenyi, use_container_width=True)
 
             with st.container(border=True):
-                st.markdown("##### 📊 Análisis Post-Hoc (Test de Nemenyi)")
-                st.markdown(f"**🔍 Interpretación:** {interp_nemenyi}\n\n**📖 Explicación:** {explic_nemenyi}")
+                st.markdown("##### 📊 Análisis Post-Hoc (Test de Nemenyi) (F11)")
+                st.markdown(f"**🔍 Interpretación (F11):** {interp_nemenyi}\n\n**📖 Explicación (F11):** {explic_nemenyi}")
             
             # Cache for export
             st.session_state["nemenyi_results"] = {
@@ -355,10 +373,10 @@ def render_robust_tests_tab() -> None:
             st.dataframe(df_t9.style.format({"D de Cohen vs. Baseline": "{:+.4f}"}), use_container_width=True, hide_index=True)
 
             with st.container(border=True):
-                st.markdown("##### 📊 Análisis Post-Hoc (Test de Nemenyi)")
+                st.markdown("##### 📊 Análisis Post-Hoc (Test de Nemenyi) (T9)")
                 interp_nemenyi = "No se requiere análisis post-hoc al no detectarse diferencias globales significativas en el test de Friedman."
                 explic_nemenyi = f"Dado que el test ómnibus de Friedman no rechazó la hipótesis nula ($p = {p_val_f:.4e} \\ge 0.05$), se asume paridad estadística entre los {len(model_names)} modelos evaluados, descartando comparaciones múltiples redundantes."
-                st.markdown(f"**🔍 Interpretación:** {interp_nemenyi}\n\n**📖 Explicación:** {explic_nemenyi}")
+                st.markdown(f"**🔍 Interpretación (T9):** {interp_nemenyi}\n\n**📖 Explicación (T9):** {explic_nemenyi}")
             st.session_state["nemenyi_results"] = None
 
     except ModuleNotFoundError as e:
