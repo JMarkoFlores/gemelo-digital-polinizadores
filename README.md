@@ -222,3 +222,8 @@ Para reproducir la auditoría se requieren los scripts ubicados en `respaldo_sur
 - **Coberturas Anómalas:** Existen registros de entrenamiento donde las sumas de coberturas de suelo exceden el 100%. 
 - **Redondeo:** Existe un redondeo en la exportación de las soluciones que puede resultar ocasionalmente en un punto dominado al perder su precisión fraccionaria original.
 - **Pruebas Estadísticas:** Los resultados de las pruebas de Friedman y Nemenyi están documentados en el Excel de respaldo. No obstante, los errores absolutos (MAE) desagregados por partición o *fold* necesarios para recalcular la prueba de forma independiente no se conservaron en la versión final de la base de datos de entrenamiento.
+
+## Licencia
+
+El código fuente de este proyecto se distribuye bajo la [Licencia MIT](LICENSE). 
+Esta licencia aplica únicamente al código fuente desarrollado. No se atribuye automáticamente a datos de terceros, modelos preentrenados, fuentes climáticas o APIs externas utilizadas o conectadas, las cuales conservan sus respectivas licencias y términos de uso originales.
