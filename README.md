@@ -214,7 +214,7 @@ Contiene subcarpetas con la ejecución original, las correcciones y la documenta
 Para reproducir la auditoría se requieren los scripts ubicados en `respaldo_surrogate_20261008_221709/scripts_auditoria/`:
 1. Levantar el entorno (`docker compose up --build`).
 2. Ejecutar `python scripts_auditoria/predict_baselines.py` dentro del contenedor del backend para calcular comparaciones sin sesgos, lo que guardará el archivo `comparacion_linea_base.json`.
-3. Ejecutar `python scripts_auditoria/prepare_files.py` (requiere `requests` y `pandas`) para consumir la API de optimización enviando la configuración estática documentada.
+3. Ejecutar `python scripts_auditoria/prepare_files.py` (requiere definir las variables de entorno `API_EMAIL` y `API_PASSWORD`) para consumir la API de optimización enviando la configuración estática documentada.
 4. Ejecutar `python scripts_auditoria/generar_documentacion.py` para analizar el frente de Pareto contra los límites del dataset.
 
 ### Limitaciones de la Ejecución
