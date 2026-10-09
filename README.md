@@ -188,3 +188,42 @@ El frontend React ahora incluye:
 
 - Fase 3: backend cientifico con carga de `.h5`, NSGA-II, historial y admin
 - Fase 4: mapas, resultados, chatbot y reportes finales en React
+
+## Auditoría y reproducción de la ejecución
+
+Para la reproducibilidad del artículo científico, se generó un entorno de auditoría que separa la preparación de datos, entrenamiento, exportación e inferencia como etapas diferenciadas.
+
+### Modelo Utilizado
+Se empleó el modelo preservado `surrogate_20261008_221709` intacto, sin reentrenamiento adicional, para la optimización y validación. 
+
+### Corrección Funcional
+Se aplicó una corrección en el cálculo de `landscape_diversity` en `backend/app/services/optimization.py`. Esta corrección establece una única función común tanto para la evaluación de la línea base, como para la evaluación de candidatos en el optimizador NSGA-II y la exportación.
+
+### Resultados Corregidos
+Bajo la nueva expresión de diversidad paisajística, se obtuvieron los siguientes índices:
+- **Línea Base:** Rendimiento de cultivo (Y) = 102.871, Abundancia de polinizadores (A) = 85.031.
+- **Solución Seleccionada:** Rendimiento de cultivo (Y) = 118.251, Abundancia de polinizadores (A) = 106.669.
+- **Variación Neta:** Incremento de Y = 15.380 puntos, e incremento de A = 25.447 %.
+
+### Ubicación de la Carpeta Consolidada
+Los materiales de respaldo (no subidos al repositorio Git por su tamaño y naturaleza binaria) se conservan localmente en:
+`respaldo_surrogate_20261008_221709/`
+Contiene subcarpetas con la ejecución original, las correcciones y la documentación analítica. Dado que estos materiales no se publican en este repositorio, se dispondrá su publicación en un repositorio de datos científico posteriormente.
+
+### Materiales y Pasos para Reproducir
+Para reproducir la auditoría se requieren los scripts ubicados en `respaldo_surrogate_20261008_221709/scripts_auditoria/`. *Importante: toda reproducción debe originarse en una carpeta nueva para evitar sobrescribir los materiales originales preservados.*
+1. Levantar el entorno (`docker compose up --build`).
+2. Ejecutar `python scripts_auditoria/predict_baselines.py` dentro del contenedor del backend para calcular comparaciones sin sesgos, lo que guardará el archivo `comparacion_linea_base.json`.
+3. Ejecutar `python scripts_auditoria/prepare_files.py` (requiere `pandas`, `requests`, `openpyxl`, y definir las variables de entorno `API_EMAIL` y `API_PASSWORD`) para consumir la API enviando la configuración documentada.
+4. Ejecutar `python scripts_auditoria/generar_documentacion.py` para analizar el frente de Pareto contra los límites del dataset.
+
+### Limitaciones de la Ejecución
+- **Extrapolación Exploratoria:** Algunas entradas como la temperatura evaluada se encuentran fuera del rango originado en los datos de entrenamiento.
+- **Coberturas Anómalas:** Existen registros de entrenamiento donde las sumas de coberturas de suelo exceden el 100%. 
+- **Redondeo:** Existe un redondeo en la exportación de las soluciones que puede resultar ocasionalmente en un punto dominado al perder su precisión fraccionaria original.
+- **Pruebas Estadísticas:** Los resultados de las pruebas de Friedman y Nemenyi están documentados en el Excel de respaldo. No obstante, los errores absolutos (MAE) desagregados por partición o *fold* necesarios para recalcular la prueba de forma independiente no se conservaron en la versión final de la base de datos de entrenamiento.
+
+## Licencia
+
+El código fuente de este proyecto se distribuye bajo la [Licencia MIT](LICENSE). 
+Esta licencia aplica únicamente al código fuente desarrollado. No se atribuye automáticamente a datos de terceros, modelos preentrenados, fuentes climáticas o APIs externas utilizadas o conectadas, las cuales conservan sus respectivas licencias y términos de uso originales.
