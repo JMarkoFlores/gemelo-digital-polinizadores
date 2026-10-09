@@ -111,6 +111,10 @@ def climate_adjustments(climate_scenario: str) -> dict[str, float]:
     return CLIMATE_SCENARIOS.get(climate_scenario, CLIMATE_SCENARIOS["current"])
 
 
+def calculate_landscape_diversity(natural_area_pct: float, floral_strips_pct: float, soil_management_score: float) -> float:
+    return min(0.96, 0.25 + natural_area_pct / 100.0 + floral_strips_pct / 90.0 + soil_management_score / 250.0)
+
+
 def build_baseline_features(context: SpatialContext, pesticide_level: float, min_natural_area_pct: float, climate_scenario: str) -> dict[str, float]:
     climate = climate_adjustments(climate_scenario)
     area_pressure = min(1.0, context.area_km2 / 100.0)
@@ -118,7 +122,7 @@ def build_baseline_features(context: SpatialContext, pesticide_level: float, min
     floral_strips_pct = min(14.0, max(3.0, natural_area_pct * 0.28))
     crop_area_pct = max(35.0, 100.0 - natural_area_pct - floral_strips_pct)
     soil_management_score = 52.0 + area_pressure * 18.0
-    landscape_diversity = min(0.92, 0.34 + natural_area_pct / 100.0 + floral_strips_pct / 120.0)
+    landscape_diversity = calculate_landscape_diversity(natural_area_pct, floral_strips_pct, soil_management_score)
 
     return {
         "crop_area_pct": round(crop_area_pct, 2),
@@ -157,7 +161,7 @@ class LandscapeOptimizationProblem(Problem):
         for crop_area, natural_area, floral_strips, pesticide_level, soil_management in X:
             remaining = 100.0 - natural_area - floral_strips
             adjusted_crop_area = min(crop_area, remaining)
-            diversity = min(0.96, 0.25 + natural_area / 100.0 + floral_strips / 90.0 + soil_management / 250.0)
+            diversity = calculate_landscape_diversity(natural_area, floral_strips, soil_management)
             rows.append(
                 {
                     "crop_area_pct": float(adjusted_crop_area),
@@ -243,7 +247,7 @@ def run_simulation(payload: dict[str, Any]) -> dict[str, Any]:
     for row in result.X:
         crop_area, natural_area, floral_strips, pesticide_level, soil_management = row
         adjusted_crop_area = min(float(crop_area), 100.0 - float(natural_area) - float(floral_strips))
-        diversity = min(0.96, 0.25 + float(natural_area) / 100.0 + float(floral_strips) / 90.0 + float(soil_management) / 250.0)
+        diversity = calculate_landscape_diversity(float(natural_area), float(floral_strips), float(soil_management))
         candidate_features.append(
             {
                 "crop_area_pct": round(max(15.0, adjusted_crop_area), 3),
