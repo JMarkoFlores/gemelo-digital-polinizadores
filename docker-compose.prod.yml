@@ -1,0 +1,76 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?}
+      POSTGRES_USER: ${POSTGRES_USER:?}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?}
+      JWT_SECRET: ${JWT_SECRET:?}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      JWT_ACCESS_TOKEN_EXPIRE_MINUTES: ${JWT_ACCESS_TOKEN_EXPIRE_MINUTES:-60}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:?}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?}
+      CLIENT_EMAIL: ${CLIENT_EMAIL:?}
+      CLIENT_PASSWORD: ${CLIENT_PASSWORD:?}
+      CORS_ORIGINS: ${CORS_ORIGINS:?}
+      LANGFLOW_URL: http://langflow:7860
+      LANGFLOW_FLOW_ID: ${LANGFLOW_FLOW_ID:-asistente-recomendaciones-agroecologicas}
+    volumes:
+      - modelos_ia_volume:/modelos_ia/
+    depends_on:
+      db:
+        condition: service_healthy
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+      args:
+        VITE_API_BASE_URL: /api
+    restart: unless-stopped
+    depends_on:
+      - backend
+
+  streamlit:
+    build:
+      context: ./streamlit_app
+    restart: unless-stopped
+    volumes:
+      - modelos_ia_volume:/modelos_ia/
+    command: streamlit run app.py --server.address=0.0.0.0 --server.port=8501
+
+  langflow:
+    image: langflowai/langflow:latest
+    restart: unless-stopped
+    environment:
+      LANGFLOW_HOST: 0.0.0.0
+      LANGFLOW_PORT: "7860"
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      LANGFLOW_AUTO_LOGIN: "true"
+    volumes:
+      - langflow_data:/app/langflow
+      - ./langflow/flows:/app/flows
+
+volumes:
+  postgres_data:
+  modelos_ia_volume:
+  langflow_data:
