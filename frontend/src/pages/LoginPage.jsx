@@ -64,7 +64,7 @@ export default function LoginPage() {
           </button>
           <button
             type="button"
-            onClick={() => fillCredentials('cliente@agricola.pe', 'Cliente123!')}
+            onClick={() => fillCredentials('cliente@example.com', 'Cliente12345!')}
             className={`flex-1 rounded-xl px-2.5 py-1.5 text-xs font-semibold transition ${
               !email.includes('admin')
                 ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
