@@ -1,0 +1,4 @@
+# Dependencias exclusivas para herramientas de documentación y publicación a Confluence Cloud
+# Estas dependencias son independientes del código de aplicación, backend, frontend y streamlit.
+
+requests>=2.31.0

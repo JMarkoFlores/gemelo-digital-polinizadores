@@ -16,3 +16,10 @@ build/
 coverage/
 .coverage
 modelos_ia/
+
+# Herramientas de documentación (tools/docs)
+tools/docs/venv/
+tools/docs/.venv/
+tools/docs/.confluence_state.json
+.confluence_state.json
+tools/docs/*.local.*
