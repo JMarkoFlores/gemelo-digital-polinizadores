@@ -2,3 +2,5 @@
 # Estas dependencias son independientes del código de aplicación, backend, frontend y streamlit.
 
 requests>=2.31.0
+pillow>=10.0.0
+matplotlib>=3.8.0

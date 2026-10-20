@@ -1,0 +1,294 @@
+{
+  "version": "1.0.0",
+  "metadata": {
+    "space_key": "GDP",
+    "space_id": "2031619",
+    "root_page_id": "2097153",
+    "test_page_id": "2162690",
+    "site": "unitru-team-hpj93f6y.atlassian.net",
+    "repo_url": "https://github.com/JMarkoFlores/gemelo-digital-polinizadores",
+    "documented_code_commit": "0d62f6634e1eb4a5066a2bd9e76efe2cb00fee02",
+    "publication_commit": "HEAD",
+    "generated_at": "2026-10-19T18:55:00Z",
+    "description": "Manifiesto canónico de publicación controlada para los 12 documentos de docs/ hacia Confluence Cloud"
+  },
+  "documents": [
+    {
+      "file": "docs/index.md",
+      "slug": "index",
+      "title": "Documentación Técnica: Gemelos Digitales de Paisajes Agrícolas y Polinizadores",
+      "parent_id": "2097153",
+      "space_id": "2031619",
+      "page_id": "2228226",
+      "version": 1,
+      "content_sha256": "1647b6f830d64574cfd5f02475b5dedec0dd311729015a9b1a12f51a61529833",
+      "status": "ready",
+      "attachments": [],
+      "remote_body_hash": "5f9ac0b5de0938007e15f974bb2ba7b550d3197dce7a5dd72f10fe6f98f0aa06"
+    },
+    {
+      "file": "docs/arquitectura.md",
+      "slug": "arquitectura",
+      "title": "Arquitectura de Software y Sistemas",
+      "parent_id": "2097153",
+      "space_id": "2031619",
+      "page_id": "2260993",
+      "version": 1,
+      "content_sha256": "307904956cd93e6dc47cc8577b6b49b6959d6690ee2aa9493a17926b3e60e6f4",
+      "status": "ready",
+      "attachments": [
+        {
+          "filename": "arquitectura-mermaid-1.png",
+          "sha256": "bf730245c27f547bb496786da65c5be83746e47c6d93a805d494500f8ff68cc5",
+          "size_bytes": 20190,
+          "content_type": "image/png",
+          "published_sha256": "bf730245c27f547bb496786da65c5be83746e47c6d93a805d494500f8ff68cc5",
+          "attachment_id": "att2293761",
+          "published_version": 1
+        }
+      ],
+      "remote_body_hash": "5bec022658644fd535ad4993a484409e1699ba06f2186a01725148adb4ba3d32"
+    },
+    {
+      "file": "docs/instalacion.md",
+      "slug": "instalacion",
+      "title": "Guía de Instalación y Despliegue Local",
+      "parent_id": "2097153",
+      "space_id": "2031619",
+      "page_id": "2326529",
+      "version": 1,
+      "content_sha256": "ab93c629b789b36ee4029da0a44c4b5435305a03f1c96c3080b2691de59dd96b",
+      "status": "ready",
+      "attachments": [],
+      "remote_body_hash": "aebc770971add38acc550320bb71f1a6acb41a6605a2a1f906da0318c38be2ad"
+    },
+    {
+      "file": "docs/configuracion.md",
+      "slug": "configuracion",
+      "title": "Guía de Configuración del Sistema",
+      "parent_id": "2097153",
+      "space_id": "2031619",
+      "page_id": "2359297",
+      "version": 1,
+      "content_sha256": "319a6e9b76221b9c468d1342a179e59865bb71fd4303b9e06fe5d83dbb682b30",
+      "status": "ready",
+      "attachments": [],
+      "remote_body_hash": "d4a57d26a2c4ef13044d0496afa1b75daec8eafa85cb16482bc570a48ab63d07"
+    },
+    {
+      "file": "docs/api.md",
+      "slug": "api",
+      "title": "Especificación y Catálogo de la API REST",
+      "parent_id": "2097153",
+      "space_id": "2031619",
+      "page_id": "2392065",
+      "version": 1,
+      "content_sha256": "eb4f523d93ff1cb2a5fbbf198a5f887fb1e6d3c1a6c8fb1b4512945e15072eb3",
+      "status": "ready",
+      "attachments": [],
+      "remote_body_hash": "7b6e8253adc3a427dbd5ae6f104749e7f9ea7b8ed90e900aa06c4d9401797a5d"
+    },
+    {
+      "file": "docs/modelo-de-datos.md",
+      "slug": "modelo-de-datos",
+      "title": "Modelo de Datos y Persistencia Relacional",
+      "parent_id": "2097153",
+      "space_id": "2031619",
+      "page_id": "2228279",
+      "version": 1,
+      "content_sha256": "c262cfa7b192481efeb531b135df9028fa1fb6af942c1b89ee0462936a06ccef",
+      "status": "ready",
+      "attachments": [
+        {
+          "filename": "modelo-de-datos-mermaid-1.png",
+          "sha256": "a4f7de8399a96f3b8be892bb5b4f0a7ee90662b1073a86ab1224f4bfc5e880ef",
+          "size_bytes": 33892,
+          "content_type": "image/png",
+          "published_sha256": "a6c43da405922a53324cefd6a819f30bd586d674cd711a5df74ae7b7671f198b",
+          "attachment_id": "att2424833",
+          "published_version": 1
+        }
+      ],
+      "remote_body_hash": "6bbb2d041f0a393578af4cb7e10f2bf41aa3aef8a8ec020cedb051781290293d"
+    },
+    {
+      "file": "docs/pipeline-cientifico.md",
+      "slug": "pipeline-cientifico",
+      "title": "Pipeline Científico, Modelado y Optimización Multiobjetivo",
+      "parent_id": "2097153",
+      "space_id": "2031619",
+      "page_id": "2326576",
+      "version": 1,
+      "content_sha256": "b735e751a2bac838496ef6bfe153a736d147515cc477fd50a8cf9e636782959c",
+      "status": "ready",
+      "attachments": [
+        {
+          "filename": "pipeline-cientifico-mermaid-1.png",
+          "sha256": "27fe912c3a8a18e9badb63c45ab8bbac73a7adea38bc9eab5b79da4d9df9147b",
+          "size_bytes": 4931,
+          "content_type": "image/png",
+          "published_sha256": "27fe912c3a8a18e9badb63c45ab8bbac73a7adea38bc9eab5b79da4d9df9147b",
+          "attachment_id": "att2293767",
+          "published_version": 1
+        },
+        {
+          "filename": "pipeline-cientifico-math-1.png",
+          "sha256": "91cb8d57007280c2eba8f62d57f7481e30b56ec22136352be4367fbd3445f55a",
+          "size_bytes": 16164,
+          "content_type": "image/png",
+          "published_sha256": "91cb8d57007280c2eba8f62d57f7481e30b56ec22136352be4367fbd3445f55a",
+          "attachment_id": "att2359334",
+          "published_version": 1
+        },
+        {
+          "filename": "pipeline-cientifico-math-2.png",
+          "sha256": "accdb61d3ca9c0055008687130f66784859cf84d09a46766672d6c8df9f76c77",
+          "size_bytes": 7295,
+          "content_type": "image/png",
+          "published_sha256": "accdb61d3ca9c0055008687130f66784859cf84d09a46766672d6c8df9f76c77",
+          "attachment_id": "att2457601",
+          "published_version": 1
+        },
+        {
+          "filename": "pipeline-cientifico-math-3.png",
+          "sha256": "a72e6c47bca2b4060d1ba3e2f9255c9171db95cd3de94fb5f92b3767eba66f26",
+          "size_bytes": 8268,
+          "content_type": "image/png",
+          "published_sha256": "a72e6c47bca2b4060d1ba3e2f9255c9171db95cd3de94fb5f92b3767eba66f26",
+          "attachment_id": "att2490369",
+          "published_version": 1
+        },
+        {
+          "filename": "pipeline-cientifico-math-4.png",
+          "sha256": "4d708a567c7dafd142e2f7c1e12b05dfda3bc9d491e9fbb801a42515650ac556",
+          "size_bytes": 11060,
+          "content_type": "image/png",
+          "published_sha256": "4d708a567c7dafd142e2f7c1e12b05dfda3bc9d491e9fbb801a42515650ac556",
+          "attachment_id": "att2523137",
+          "published_version": 1
+        },
+        {
+          "filename": "pipeline-cientifico-math-5.png",
+          "sha256": "247de41e76c278abcc14623f6cf396c689f4b25dab47789781334c9806f32f1a",
+          "size_bytes": 10670,
+          "content_type": "image/png",
+          "published_sha256": "247de41e76c278abcc14623f6cf396c689f4b25dab47789781334c9806f32f1a",
+          "attachment_id": "att2326623",
+          "published_version": 1
+        },
+        {
+          "filename": "pipeline-cientifico-math-6.png",
+          "sha256": "c7e47feabdd400aaf87e70bfb84f502de1c487309e31f5b0f508d39f8b094f7e",
+          "size_bytes": 5882,
+          "content_type": "image/png",
+          "published_sha256": "c7e47feabdd400aaf87e70bfb84f502de1c487309e31f5b0f508d39f8b094f7e",
+          "attachment_id": "att2555905",
+          "published_version": 1
+        },
+        {
+          "filename": "pipeline-cientifico-math-7.png",
+          "sha256": "3fdd32bf26a1746a956d6594e92423641eb7099bf891ab293642329cc132f034",
+          "size_bytes": 11672,
+          "content_type": "image/png",
+          "published_sha256": "3fdd32bf26a1746a956d6594e92423641eb7099bf891ab293642329cc132f034",
+          "attachment_id": "att2588673",
+          "published_version": 1
+        },
+        {
+          "filename": "pipeline-cientifico-math-8.png",
+          "sha256": "105e1779c03c2652ba70ce86a608d6d00c5733262341184b4faa5ffa28cfc57f",
+          "size_bytes": 14777,
+          "content_type": "image/png",
+          "published_sha256": "105e1779c03c2652ba70ce86a608d6d00c5733262341184b4faa5ffa28cfc57f",
+          "attachment_id": "att2621441",
+          "published_version": 1
+        },
+        {
+          "filename": "pipeline-cientifico-math-9.png",
+          "sha256": "239c0531ead874493934627fd29f8a818ef587c2bafb88fab84a7605b7df8ea7",
+          "size_bytes": 11914,
+          "content_type": "image/png",
+          "published_sha256": "239c0531ead874493934627fd29f8a818ef587c2bafb88fab84a7605b7df8ea7",
+          "attachment_id": "att2555911",
+          "published_version": 1
+        }
+      ],
+      "remote_body_hash": "289a297e884bbb070ccd002a9d976c73c9cb8ebb23f0a8f0fb55bb078f81dd60"
+    },
+    {
+      "file": "docs/pruebas.md",
+      "slug": "pruebas",
+      "title": "Inventario y Estado de Pruebas de Software y Validación Estadística",
+      "parent_id": "2097153",
+      "space_id": "2031619",
+      "page_id": "2261046",
+      "version": 1,
+      "content_sha256": "3463e972ed30f258c3ec0cf4459152dd1f0d462a7cada54fbfadbdbbb226408a",
+      "status": "ready",
+      "attachments": [
+        {
+          "filename": "pruebas-math-1.png",
+          "sha256": "2b6ffea4b842b8cad65f1fa08992c5a4bf5450372baa63f47feafbe0b951d9a8",
+          "size_bytes": 7184,
+          "content_type": "image/png",
+          "published_sha256": "2b6ffea4b842b8cad65f1fa08992c5a4bf5450372baa63f47feafbe0b951d9a8",
+          "attachment_id": "att2588679",
+          "published_version": 1
+        }
+      ],
+      "remote_body_hash": "266be3d060a2a3b88d36682bd56a99e405fccce1dce8f054812621a6ad48b03d"
+    },
+    {
+      "file": "docs/reproducibilidad.md",
+      "slug": "reproducibilidad",
+      "title": "Guía y Requisitos para la Reproducibilidad Científica",
+      "parent_id": "2097153",
+      "space_id": "2031619",
+      "page_id": "2424839",
+      "version": 1,
+      "content_sha256": "ce797b0c6b604bdf03202968fe5f9f70790e52b00b87847ffd012eeaea160df7",
+      "status": "ready",
+      "attachments": [],
+      "remote_body_hash": "f074d7c5be8f6529abf27152727469798fe00e3efb9b3b78eef315f15db1dec8"
+    },
+    {
+      "file": "docs/limitaciones.md",
+      "slug": "limitaciones",
+      "title": "Limitaciones Técnicas, Científicas y Verificaciones Pendientes",
+      "parent_id": "2097153",
+      "space_id": "2031619",
+      "page_id": "2392158",
+      "version": 1,
+      "content_sha256": "4aca4020561d6ed666790f949f13efb11981234f62419f674ce1ed4dc65901be",
+      "status": "ready",
+      "attachments": [],
+      "remote_body_hash": "5c56d37b12ff9966430d77bf0a43796646fdf40d460dcb9e5da7b03b1853fcb3"
+    },
+    {
+      "file": "docs/inventario.md",
+      "slug": "inventario",
+      "title": "Inventario Técnico del Repositorio: Gemelos Digitales 02",
+      "parent_id": "2097153",
+      "space_id": "2031619",
+      "page_id": "2424908",
+      "version": 1,
+      "content_sha256": "99942dd96a6eb949e4e96c5d69b168b80f0f74e80f52b43c131f7d0f05a1d53c",
+      "status": "ready",
+      "attachments": [],
+      "remote_body_hash": "3d2a492f547fdc44589375381966bb7b5acc7980a5620624dd5f8013f474a433"
+    },
+    {
+      "file": "docs/pendientes.md",
+      "slug": "pendientes",
+      "title": "Registro de Pendientes, Brechas y Verificaciones Técnicas",
+      "parent_id": "2097153",
+      "space_id": "2031619",
+      "page_id": "2490375",
+      "version": 1,
+      "content_sha256": "9b0fbadb06dd697892874fbab614179be968047b5199aa5221ee37126f4e81f0",
+      "status": "ready",
+      "attachments": [],
+      "remote_body_hash": "ff577e4cf7c846b46f900f0a82b104c76028e8ce775101bcbd72de65aeb00a78"
+    }
+  ]
+}

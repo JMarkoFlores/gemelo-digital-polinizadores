@@ -1,0 +1,12 @@
+# Entornos virtuales locales y dependencias
+venv/
+.venv/
+node_modules/
+__pycache__/
+*.pyc
+
+# Activos temporales y estado local
+rendered_assets/
+.confluence_state.json
+*.tmp
+*.local.*

@@ -233,3 +233,91 @@ class ConfluenceClient:
             },
         }
         return self._request("PUT", f"pages/{page_id}", data=payload)
+
+    def get_attachments(self, page_id: str) -> List[Dict[str, Any]]:
+        """Obtiene la lista de adjuntos pertenecientes a una página mediante la API v2."""
+        res = self._request("GET", f"pages/{page_id}/attachments")
+        return res.get("results", [])
+
+    def _get_v1_rest_url(self) -> str:
+        """Devuelve la URL base para endpoints v1 (/wiki/rest/api) tanto en scoped como en unscoped."""
+        if self.token_type == "scoped":
+            return f"https://api.atlassian.com/ex/confluence/{self.cloud_id}/wiki/rest/api"
+        return f"https://{self.site_domain}/wiki/rest/api"
+
+    def upload_attachment(
+        self,
+        page_id: str,
+        file_path: Any,
+        comment: str = "Adjunto generado automáticamente",
+    ) -> Dict[str, Any]:
+        """Carga un archivo local como adjunto de la página mediante la API oficial de Confluence.
+
+        Utiliza HTTP Basic Authentication y la cabecera de seguridad 'X-Atlassian-Token: nocheck'.
+        """
+        import requests
+        from pathlib import Path
+
+        p = Path(file_path)
+        url = f"{self._get_v1_rest_url()}/content/{page_id}/child/attachment"
+        headers = {
+            "Authorization": self._get_auth_header(),
+            "X-Atlassian-Token": "nocheck",
+            "User-Agent": "ConfluenceDocsPublisher/1.0",
+        }
+        with open(p, "rb") as f:
+            files = {"file": (p.name, f, "image/png")}
+            data = {"comment": comment}
+            try:
+                resp = requests.post(url, headers=headers, files=files, data=data, timeout=self.timeout)
+            except Exception as exc:
+                raise ConfluenceAPIError(f"Error de conexión al cargar adjunto {p.name}: {exc}") from None
+
+        if resp.status_code not in (200, 201):
+            clean_text = resp.text.replace(self._api_token, "[REDACTED]")
+            raise ConfluenceAPIError(
+                f"Error al subir adjunto {p.name} (código {resp.status_code}): {clean_text}",
+                status_code=resp.status_code,
+            )
+        return resp.json()
+
+    def update_attachment(
+        self,
+        page_id: str,
+        attachment_id: str,
+        file_path: Any,
+        comment: str = "Actualización automática de adjunto",
+    ) -> Dict[str, Any]:
+        """Actualiza el archivo binario de un adjunto existente mediante el endpoint oficial de Confluence REST API:
+        POST /wiki/rest/api/content/{page_id}/child/attachment/{attachment_id}/data
+
+        Conserva la referencia y el ID del adjunto en la página, generando una nueva versión remota.
+        Utiliza HTTP Basic Authentication y la cabecera de seguridad 'X-Atlassian-Token: nocheck'.
+        """
+        import requests
+        from pathlib import Path
+
+        p = Path(file_path)
+        url = f"{self._get_v1_rest_url()}/content/{page_id}/child/attachment/{attachment_id}/data"
+        headers = {
+            "Authorization": self._get_auth_header(),
+            "X-Atlassian-Token": "nocheck",
+            "User-Agent": "ConfluenceDocsPublisher/1.0",
+        }
+        with open(p, "rb") as f:
+            files = {"file": (p.name, f, "image/png")}
+            data = {"comment": comment}
+            try:
+                resp = requests.post(url, headers=headers, files=files, data=data, timeout=self.timeout)
+            except Exception as exc:
+                raise ConfluenceAPIError(f"Error de conexión al actualizar adjunto {p.name}: {exc}") from None
+
+        if resp.status_code not in (200, 201):
+            clean_text = resp.text.replace(self._api_token, "[REDACTED]")
+            raise ConfluenceAPIError(
+                f"Error al actualizar adjunto {p.name} (código {resp.status_code}): {clean_text}",
+                status_code=resp.status_code,
+            )
+        return resp.json()
+
+
