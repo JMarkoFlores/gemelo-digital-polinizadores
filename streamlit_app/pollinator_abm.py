@@ -6,7 +6,27 @@ import numpy as np
 import pandas as pd
 from mesa import Agent, Model
 from mesa.space import MultiGrid
-from mesa.time import RandomActivation
+try:
+    from mesa.time import RandomActivation
+except ImportError:
+    class RandomActivation:
+        def __init__(self, model: "PollinatorLandscapeModel") -> None:
+            self.model = model
+            self._agents: list[Agent] = []
+        def add(self, agent: Agent) -> None:
+            self._agents.append(agent)
+        def remove(self, agent: Agent) -> None:
+            if agent in self._agents:
+                self._agents.remove(agent)
+        def step(self) -> None:
+            import random
+            shuffled = list(self._agents)
+            random.shuffle(shuffled)
+            for agent in shuffled:
+                if agent in self._agents:
+                    agent.step()
+        def get_agent_count(self) -> int:
+            return len(self._agents)
 
 
 @dataclass

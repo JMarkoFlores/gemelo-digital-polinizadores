@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import io
 import json
+import re
 from pathlib import Path
 
+from PIL import Image
 import pandas as pd
 import numpy as np
 import plotly.express as px
@@ -23,8 +26,16 @@ from training import export_model_bundle, train_surrogate_model
 from advanced_training import train_and_evaluate_all_models
 from reports import generate_excel_report, generate_word_report, generate_pdf_report
 from robust_tests import render_robust_tests_tab
+from export_helpers import (
+    render_high_res_chart,
+    render_table_with_excel,
+    get_high_res_plotly_config,
+    export_figure_to_600dpi,
+    export_dataframe_to_excel,
+)
 
 MODEL_DIR = Path("/modelos_ia")
+
 
 st.set_page_config(
     page_title="Gemelos Digitales Lab",
@@ -393,7 +404,14 @@ def render_dataset_tab() -> None:
                     
                     st.markdown("**Procedencia por variable (Auditoría metodológica):**")
                     prov_df = pd.DataFrame(list(metadata["column_provenance"].items()), columns=["Columna", "Origen y Tratamiento"])
-                    st.dataframe(prov_df, use_container_width=True, hide_index=True)
+                    render_table_with_excel(
+                        prov_df,
+                        filename="T1_procedencia_variables",
+                        key_suffix="eda_t1",
+                        sheet_name="Procedencia_Variables",
+                        hide_index=True,
+                        help_text="Descarga la tabla de procedencia de variables (T1) en formato Excel (.xlsx).",
+                    )
 
                     # Interpretación dinámica T1: Procedencia de Variables
                     n_total_prov = len(prov_df)
@@ -411,7 +429,14 @@ def render_dataset_tab() -> None:
                         )
 
             st.markdown("##### 🔍 Muestra de Datos (T2)")
-            st.dataframe(dataset.head(10), use_container_width=True, hide_index=True)
+            render_table_with_excel(
+                dataset.head(10),
+                filename="T2_muestra_datos",
+                key_suffix="eda_t2",
+                sheet_name="Muestra_Datos",
+                hide_index=True,
+                help_text="Descarga la muestra preliminar de 10 datos (T2) en formato Excel (.xlsx).",
+            )
 
             # Interpretación T2: Muestra Cruda
             with st.container(border=True):
@@ -422,7 +447,14 @@ def render_dataset_tab() -> None:
                 )
 
             st.markdown("##### 📐 Estadísticas Descriptivas (EDA)")
-            st.dataframe(dataset.describe().round(2), use_container_width=True)
+            render_table_with_excel(
+                dataset.describe().round(2),
+                filename="T3_estadisticas_descriptivas",
+                key_suffix="eda_t3",
+                sheet_name="Estadisticas_EDA",
+                include_index=True,
+                help_text="Descarga la tabla completa de estadísticas descriptivas (T3) en formato Excel (.xlsx).",
+            )
 
             # Interpretación dinámica T3: Estadísticas Descriptivas
             desc = dataset.describe()
@@ -455,7 +487,11 @@ def render_dataset_tab() -> None:
                 template="plotly_dark",
             )
             fig.update_layout(height=400, margin=dict(l=0, r=0, t=48, b=0))
-            st.plotly_chart(fig, use_container_width=True)
+            render_high_res_chart(
+                fig,
+                filename="F1_matriz_correlaciones",
+                key_suffix="eda_f1",
+            )
 
             # Interpretación dinámica F1: Matriz de Correlación
             with st.container(border=True):
@@ -528,7 +564,11 @@ def render_dataset_tab() -> None:
                 yaxis_title="Densidad de probabilidad" if show_kde else "Frecuencia",
                 legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
             )
-            st.plotly_chart(fig_hist, use_container_width=True)
+            render_high_res_chart(
+                fig_hist,
+                filename=f"F2_distribucion_{selected_hist_var}",
+                key_suffix="eda_f2",
+            )
 
             # Interpretación dinámica F2: Histograma y KDE
             skews = dataset[all_eda_vars].skew(numeric_only=True)
@@ -615,7 +655,11 @@ def render_dataset_tab() -> None:
                 )
                 fig_box.update_layout(height=350, margin=dict(l=0, r=0, t=40, b=0), yaxis_title=sel_box_var)
 
-            st.plotly_chart(fig_box, use_container_width=True)
+            render_high_res_chart(
+                fig_box,
+                filename="F3_boxplots_deteccion_outliers",
+                key_suffix="eda_f3",
+            )
 
             # Interpretación dinámica F3: Boxplots y Outliers
             with st.container(border=True):
@@ -695,7 +739,11 @@ def render_simulation_tab() -> None:
                 template="plotly_dark",
             )
             heatmap.update_layout(height=300, margin=dict(l=0, r=0, t=40, b=0))
-            st.plotly_chart(heatmap, use_container_width=True)
+            render_high_res_chart(
+                heatmap,
+                filename="F4_mapa_recursos_abm",
+                key_suffix="abm_f4",
+            )
 
             # Interpretación dinámica F4: Mapa de Recursos Espaciales ABM
             res_arr = np.array(preview["resource_map"])
@@ -727,7 +775,11 @@ def render_simulation_tab() -> None:
                 paper_bgcolor="rgba(0,0,0,0)",
                 plot_bgcolor="rgba(0,0,0,0)",
             )
-            st.plotly_chart(history_fig, use_container_width=True)
+            render_high_res_chart(
+                history_fig,
+                filename="F5_trayectoria_poblacional_abm",
+                key_suffix="abm_f5",
+            )
 
             # Interpretación dinámica F5: Trayectoria Poblacional ABM
             pop_hist = preview["population_history"]
@@ -853,7 +905,14 @@ def render_training_tab() -> None:
         # 0. Tabla de Mejores Hiperparámetros Encontrados (si se activó tuning)
         if ht_info.get("activado") and ht_info.get("tuning_df") is not None:
             st.markdown("### 🏆 Mejores Hiperparámetros Encontrados (T4)")
-            st.dataframe(ht_info["tuning_df"], use_container_width=True, hide_index=True)
+            render_table_with_excel(
+                ht_info["tuning_df"],
+                filename="T4_mejores_hiperparametros",
+                key_suffix="train_t4",
+                sheet_name="Hiperparametros_Tuning",
+                hide_index=True,
+                help_text="Descarga la tabla de hiperparámetros óptimos sintonizados (T4) en Excel (.xlsx).",
+            )
             
             with st.container(border=True):
                 st.markdown("##### 🧠 Sintonización de Hiperparámetros (T4)")
@@ -881,13 +940,16 @@ def render_training_tab() -> None:
         registro_df["activo"] = registro_df["nombre"] == best_overall
         registro_df["fecha_entrenamiento"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
-        st.dataframe(
+        render_table_with_excel(
             registro_df,
-            use_container_width=True,
+            filename="T5_registro_modelos",
+            key_suffix="train_t5",
+            sheet_name="Registro_Modelos",
             hide_index=True,
             column_config={
                 "activo": st.column_config.CheckboxColumn("activo")
-            }
+            },
+            help_text="Descarga el registro de modelos gobernados (T5) en Excel (.xlsx).",
         )
 
         # Interpretación dinámica T5: Registro y Gobernanza de Modelos
@@ -915,7 +977,14 @@ def render_training_tab() -> None:
         comparativa_df["Train Seconds"] = results_df["Train_Time_Mean"].round(4)
         comparativa_df["Infer Seconds"] = results_df["Infer_Time_Mean"].round(4)
         
-        st.dataframe(comparativa_df, use_container_width=True, hide_index=True)
+        render_table_with_excel(
+            comparativa_df,
+            filename="T6_tabla_comparativa_modelos",
+            key_suffix="train_t6",
+            sheet_name="Comparativa_Modelos",
+            hide_index=True,
+            help_text="Descarga la tabla comparativa de modelos multimétrica CV (T6) en Excel (.xlsx).",
+        )
 
         # Interpretación dinámica T6: Tabla Comparativa Multimétrica CV
         with st.container(border=True):
@@ -957,7 +1026,11 @@ def render_training_tab() -> None:
             color_discrete_sequence=["#73b0ff", "#ffbaba"]
         )
         fig_metrics.update_layout(template="plotly_dark", margin=dict(l=0, r=0, t=30, b=0), yaxis_title="")
-        st.plotly_chart(fig_metrics, use_container_width=True)
+        render_high_res_chart(
+            fig_metrics,
+            filename="F6_comparacion_metricas_clave",
+            key_suffix="train_f6",
+        )
 
         # Interpretación dinámica F6: Comparación de Métricas Clave
         with st.container(border=True):
@@ -1015,7 +1088,11 @@ def render_training_tab() -> None:
                 max_val = max(last_y_true[:, 0].max(), last_y_pred[:, 0].max())
                 fig_scatter.add_shape(type="line", x0=min_val, y0=min_val, x1=max_val, y1=max_val, line=dict(color="white", dash="dash"))
                 fig_scatter.update_layout(template="plotly_dark", height=280, margin=dict(l=0, r=0, t=10, b=0), xaxis_title="Valores Reales", yaxis_title="Valores Predichos")
-                st.plotly_chart(fig_scatter, use_container_width=True)
+                render_high_res_chart(
+                    fig_scatter,
+                    filename=f"F7_predichos_vs_reales_{selected_model}",
+                    key_suffix="train_f7",
+                )
 
                 # Interpretación dinámica F7: Predichos vs Reales
                 y_t0 = last_y_true[:, 0]
@@ -1046,7 +1123,11 @@ def render_training_tab() -> None:
                 )
                 fig_res.add_shape(type="line", x0=last_y_pred[:, 0].min(), y0=0, x1=last_y_pred[:, 0].max(), y1=0, line=dict(color="white", dash="dash"))
                 fig_res.update_layout(template="plotly_dark", height=280, margin=dict(l=0, r=0, t=10, b=0), xaxis_title="Valores Predichos", yaxis_title="Error Residual")
-                st.plotly_chart(fig_res, use_container_width=True)
+                render_high_res_chart(
+                    fig_res,
+                    filename=f"F8_distribucion_residuos_{selected_model}",
+                    key_suffix="train_f8",
+                )
 
                 # Interpretación dinámica F8: Residuos vs Predichos
                 res_mean = float(np.mean(residuals))
@@ -1135,7 +1216,11 @@ def render_training_tab() -> None:
                         df_imp = pd.DataFrame({"Variable": FEATURE_COLUMNS, "Importancia": importances}).sort_values("Importancia", ascending=True)
                         fig_imp = px.bar(df_imp, x="Importancia", y="Variable", orientation='h', title="Feature Importance (Permutation MAE)")
                         fig_imp.update_layout(template="plotly_dark", height=300, margin=dict(l=0, r=0, t=30, b=0))
-                        st.plotly_chart(fig_imp, use_container_width=True)
+                        render_high_res_chart(
+                            fig_imp,
+                            filename=f"F9_feature_importance_{selected_model}",
+                            key_suffix="train_f9",
+                        )
 
                         # Interpretación dinámica F9: Feature Importance por Permutación
                         top_feat = df_imp.iloc[-1]["Variable"]

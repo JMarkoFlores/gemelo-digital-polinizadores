@@ -13,3 +13,5 @@ scipy==1.14.1
 seaborn==0.13.2
 scikit-posthocs==0.17.0
 pyarrow==17.0.0
+kaleido>=0.2.1
+pillow>=10.0.0

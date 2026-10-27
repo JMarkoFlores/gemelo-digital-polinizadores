@@ -1,0 +1,282 @@
+=== P0 ===
+Tipo de Artículo: Artículos de investigación científica y tecnológica
+=== P1 ===
+Área Temática: Agricultura de precisión
+=== P2 ===
+
+=== P3 ===
+Prototipo de gemelo digital agroecológico: simulación multiagente y optimización de índices de rendimiento y abundancia de polinizadores
+=== P4 ===
+
+=== P5 ===
+Agroecological digital twin prototype: agent-based simulation and optimization of yield and pollinator abundance indices
+=== P6 ===
+
+=== P7 ===
+Resumen
+=== P8 ===
+La planificación agroecológica plantea la necesidad de explorar los compromisos entre la producción agrícola y la conservación de polinizadores. Este trabajo ha desarrollado un prototipo de gemelo digital que integra la simulación multiagente en Mesa, con una malla de 18 × 18 celdas, modelos predictivos y optimización multiobjetivo. Se han combinado datos sintéticos con datos climáticos de NASA POWER y datos biológicos de GBIF, generando ocho variables de entrada y tres índices modelados para el rendimiento agrícola, la abundancia y la diversidad de polinizadores. Se ha realizado una comparación entre Ridge, una red neuronal profunda, Autoencoder + MLP, Random Forest y XGBoost mediante validación cruzada de cinco particiones. Ridge ha alcanzado el mayor R² promedio (0,4778) y el menor RMSE (7,2511); y la red neuronal ha conseguido el menor MAE (6,2126), sin que la complejidad proporcione mejoras uniformes. La evolución de NSGA-II ha promovido exploraciones de compromisos teóricos entre el rendimiento y la abundancia a partir de restricciones de cobertura y manejo, visualizándose posteriormente en una interfaz web. El prototipo permite explorar escenarios agroecológicos, pero los índices generados no están suficientemente validados respecto de las mediciones de campo; su aplicación en el territorio exige calibración, validación externa y evaluación de la incertidumbre.
+=== P9 ===
+Palabras clave: gemelo digital; simulación multiagente; optimización multiobjetivo; rendimiento agrícola; polinizadores; 
+=== P10 ===
+
+=== P11 ===
+Abstract
+=== P12 ===
+Agroecological planning requires exploring trade-offs between agricultural production and pollinator conservation. This study developed a digital twin prototype integrating multi-agent simulation in Mesa on an 18 × 18-cell grid, predictive models, and multi-objective optimization. Synthetic data were combined with climate data from NASA POWER and biological data from GBIF, yielding eight input variables and three modeled indices representing agricultural yield, pollinator abundance, and pollinator diversity. Ridge regression, a deep neural network, Autoencoder + MLP, Random Forest, and XGBoost were compared using five-fold cross-validation. Ridge achieved the highest mean R² (0.4778) and the lowest RMSE (7.2511), while the neural network achieved the lowest MAE (6.2126), with greater complexity providing no consistent improvements. The evolutionary search performed by NSGA-II enabled the exploration of theoretical trade-offs between yield and abundance under land-cover and management constraints, with alternatives subsequently visualized through a web interface. The prototype enables the exploration of agroecological scenarios; however, the generated indices have not been sufficiently validated against field measurements. Its application in real-world settings requires calibration, external validation, and uncertainty assessment.
+=== P13 ===
+Keywords: digital twin; multi-agent simulation; multi-objective optimization; agricultural yield; pollinators.
+=== P14 ===
+
+=== P15 ===
+Introducción 
+=== P16 ===
+La planificación agroecológica tiene la obligación de conjugar la producción de cultivos con la conservación de los organismos que contribuyen a los servicios de polinización. En este contexto, Reilly et al. (2024), a través de una revisión a nivel global, hallan contribuciones promedio similares de los insectos silvestres y las abejas melíferas al rendimiento de los cultivos por visita floral. Estos resultados ponen de manifiesto la importancia de considerar diferentes grupos de polinizadores en el manejo agrícola. También, la mejora de métodos agroambientales da pie a la búsqueda de compensaciones entre objetivos productivos y ecológicos, si bien sus resultados son sensibles a las características del paisaje y a los criterios de valoración adoptados (Bonato et al., 2025).
+=== P17 ===
+Los gemelos digitales presentan un entorno para unir representaciones computacionales, datos y herramientas. Verdouw et al. (2021) comentan su utilidad para representar sistemas físicos y para ayudar a la planificación, la monitorización y la optimización de los procesos, mientras que Pylianidis et al. (2021) proponen aplicaciones agrícolas con diferentes escalas y niveles de complejidad. Las revisiones de Purcell y Neubauer (2023) y Tagarakis et al. (2024) analizan sus aplicaciones, los problemas de implementación; esta última destaca las dificultades de representar de forma conjunta componentes bióticos y abióticos con datos accesibles y valiosos. En ecología, de Koning et al. (2023) acentúan la integración de modelos, de observaciones y del conocimiento del dominio. Por eso, el prototipo aquí presentado representa todavía un primer acercamiento cuya consolidación precisa calibrar la conexión verificable con observaciones de campo.
+=== P18 ===
+El modelado basado en agentes puede facilitar la representación de comportamientos individuales y de las interacciones de los individuos que generan respuestas. Un antecedente directamente relacionado es HONEYBEE-pDT, desarrollado sobre BEEHAVE para simular el forrajeo y la dinámica de una colonia de abejas melíferas en paisajes agrícolas (Groeneveld et al., 2024). De igual manera, la evaluación de muchas simulaciones en un proceso de calibración o en un análisis del espacio de escenarios puede llegar a incrementar el coste computacional, por lo que Angione et al., (2022) proponen utilizar modelos sustitutos de aprendizaje automático para facilitar el análisis. Igualmente, Niemann et al. (2024) estudian sustitutos en base a operadores de Koopman para la optimización multiobjetivo de sistemas multiagente. De esta forma, estos antecedentes impulsan el uso de modelos en sustitución, aunque con formulaciones diferentes.
+=== P19 ===
+En este sentido, es conveniente reflexionar sobre la fusión de simulación multiagente, aprendizaje automático y optimización multiobjetivo en una herramienta de exploración agroecológica; siendo estos los temas que se abordan en este trabajo a través de índices modelados de rendimiento agrícola, abundancia y diversidad de polinizadores. El trabajo queda acotado a la puesta en práctica del prototipo y la evaluación predictiva interna, pero nos omite la demostración de efectos sobre poblaciones o cosechas observadas.
+=== P20 ===
+El objetivo de la investigación llevada a cabo en este artículo, fue el desarrollo y evaluación de un prototipo de gemelo digital agroecológico que integra un simulador multiagente en Mesa, modelos predictivos y un optimizador NSGA-II implementado en Pymoo. Se hicieron cinco comparaciones de alternativas predictivas y se incorporó un modelo neuronal al flujo de optimización para explorar compromisos entre rendimiento agrícola y abundancia de polinizadores estimados, bajo restricciones de cobertura y manejo. La plataforma presenta una interfaz web para visualizar escenarios con la intención de facilitar la exploración de decisiones agroecológicas y servir de base para futuras evaluaciones.
+=== P21 ===
+
+=== P22 ===
+Materiales y métodos
+=== P23 ===
+Dominio de simulación y preparación de datos
+=== P24 ===
+Se obtuvieron 320 muestras usando el algoritmo de semillas 42 y multi-agent enrichment para el Valle del Cauca, Colombia (3,4500; −76,5300), empleando un radio de consulta de biodiversidad de 35 km y un periodo climático 2019-2023. En data_pipeline.py, los datos de NASA POWER parametrizaron el muestreo climático, mientras que las ocurrencias de GBIF proporcionaron valores de referencia biológica. Las variables disponibles para el paisaje y uso fueron generadas mediante distribuciones uniformes, y los índices, mediante relaciones parametrizadas y ruido. El enriquecimiento simuló las primeras 120 muestras donde combinó la abundancia parametrizada y la derivada de las simulaciones de población con ponderaciones 0.35 y 0.65. La diversidad combinó el índice parametrizado y la expresión analítica de las entradas con ponderaciones 0.30 y 0.70. Las restantes muestras conservaron ambos índices parametrizados y luego se ajustó el rendimiento en función de la abundancia. Dichas salidas no representaban mediciones de campo.
+=== P25 ===
+Arquitectura del sistema en microservicios
+=== P26 ===
+La integración de tecnologías se reconoce como uno de los ejes principales en lo que respecta a gemelos agrícolas, abordados por los autores Escribà-Gelonch et al. (2024) desde una orquestación de aplicaciones y Albayrak (2026) desde un marco multicapa de implementación, antecedentes de los que se puede partir para organizar los elementos del prototipo, pero que no acreditan su capacidad de funcionamiento.
+=== P27 ===
+Docker Compose integró esos servicios: PostgreSQL para persistencia; Streamlit para preparación de datos, simulación y comparación de modelos; FastAPI para inferencia y optimización; React para visualización; y Langflow para recomendación (figura 1a). Para su exportación al backend, se seleccionó el modelo neuronal con el mayor R² promedio entre las tres salidas en una partición de validación, considerando los candidatos DNN y Autoencoder+MLP e independiente de la clasificación global de los modelos comparados. El modelo seleccionado fue comprobado en model_store.py cada cinco segundos por el backend. Respuestas a las mismas solicitudes fueron reutilizadas atendiendo la caché en memoria (claves SHA-256). En el caso de haber metadatos geográficos, la proximidad del centroide del área seleccionada con el punto de referencia fue comprobada a través de distancia de Haversine manteniendo una tolerancia del 20 % sobre el radio de referencia.
+=== P28 ===
+Simulación multiagente del balance bioenergético
+=== P29 ===
+El modelado de las abejas en los paisajes agrícolas tiene antecedentes previos que estudian la disponibilidad de recursos, la diversidad de cultivos, la estructura del paisaje (Horn et al., 2021), así como las relaciones entre la configuración territorial y los servicios de polinización (Santibañez et al., 2022). En la versión del prototipo, Mesa (pollinator_abm.py) distribuyó aleatoriamente coberturas naturales, florales y de cultivo sobre una rejilla de celdas 18 × 18. Los recursos iniciales dependían de la cobertura, del manejo del suelo y de la desviación térmica respecto a 24,0 °C y su regeneración precedía al activado aleatorio de los agentes (Ecuación 1). Cada agente seleccionó una celda del vecindario de Moore por medio de recursos disponibles y ruido aleatorio, actualizó su energía y llevó a cabo las reglas de reproducción o muerte (Ecuación 2; figura 1b). La ingesta de energía y la reducción de recursos fueron parametrizados por separado.
+=== P30 ===
+
+=== P31 ===
+En las ecuaciones , , y  se entiende el manejo del suelo, el nivel de plaguicidas y la diversidad paisajística. Al igual que  sería temperatura,  penalización por plaguicidas y 𝒜 el conjunto de agentes,  sería el recurso disponible en el proceso de activación secuencial, desde un valor de ; dicho valor al finalizar el paso define . El nacimiento se incorpora únicamente si .
+=== P32 ===
+
+=== P33 ===
+Figura 1. Arquitectura del prototipo y dinámica del agente.
+=== P34 ===
+Nota: (a) Partes que componen el sistema y el flujo de la información en general, (b) regeneración de recursos y mecanismos de activación, forrajeo y balance de energía. Las relaciones funcionales son representadas por flechas. 
+=== P35 ===
+Fuente: elaboración propia, a partir del Repositorio.
+=== P36 ===
+
+=== P37 ===
+Evaluación de modelos predictivos y optimización multiobjetivo
+=== P38 ===
+Se compararon Random Forest, XGBoost, regresión Ridge, una red neuronal profunda y una arquitectura de Autoencoder + MLP por medio de una validación cruzada de cinco divisiones aleatorias, estableciendo semilla 42 y conservando el ajuste de hiperparámetros. Se calcularon sobre salida y sus promedios entre divisiones las métricas y se ordenaron los modelos según mayor (R2) + menor MAE + menor RMSE. En la exportación al backend se utilizó el modelo Keras que obtuvo el resultado mayor (R2) en una partición, a pesar de que era distinto al ganador global. El NSGA-II, implementado en Pymoo, optimizó cinco variables de cobertura y manejo, con población de 64, 40 generaciones y semilla 42. Se maximizaron los índices predichos de rendimiento y abundancia, respetando las restricciones de superficies, siendo la solución final la que obtuvo una puntuación que favorecía incrementos de polinizadores sin pérdida de rendimiento (Ecuación 3).
+=== P39 ===
+
+=== P40 ===
+En la Ecuación 3, ,  y  son los porcentajes de cultivo, área natural y cobertura floral;  y  son el uso de plaguicidas y manejo del suelo.  y  son temperatura y precipitación del escenario.  maneja entradas de la red exportada;  y  restituyen la escala de las salidas.  son puntos del índice de rendimiento y , cambio porcentual de la línea base. La construcción de la línea fue mediante reglas heurísticas elaboradas a partir de cobertura y manejo. Tanto esta configuración como los candidatos utilizaron la misma expresión de diversidad paisajística , definida en la Ecuación 3. La temperatura y la precipitación fueron constantes a lo largo de la optimización del escenario evaluado. 
+=== P41 ===
+Se utilizó Friedman para el MAE promedio de las tres salidas en cada una de las cinco particiones. En la Ecuación 4, ,  y  denota el rango medio del modelo , de tal forma que a los errores menores se les asignaron rangos menores. Cuando el contraste global presentó , se calcularon los valores  del post-hoc de Nemenyi. Se consideró el análisis exploratorio debido al solapamiento de los conjuntos y a la reducida cantidad de particiones que se hallaron.
+=== P42 ===
+
+=== P43 ===
+La Tabla 1 sintetiza las variables de decisión, los parámetros del simulador multiagente y la configuración del optimizador usados en el sistema.
+=== P44 ===
+Tabla 1. Variables de decisión, parámetros de simulación y configuración de la optimización
+=== P45 ===
+Nota:  es el porcentaje mínimo de área natural predefinido para la optimización;  hace referencia a la energía del agente. El porcentaje en cultivo se regula a la superficie después de asignar las cubiertas natural y floral. Los parámetros internos no son mediciones físicas calibradas.
+=== P46 ===
+Fuente: Realización propia a partir de pollinator_abm.py y optimization.py.
+=== P47 ===
+Cuatro escenarios exploratorios fueron definidos mediante cambios de temperatura y precipitación en relación a la línea base (Tabla 2). Estas perturbaciones corresponden a la configuración del software y no a proyecciones climáticas regionalizadas.
+=== P48 ===
+Tabla 2. Perturbaciones climáticas configuradas en el software
+=== P49 ===
+Nota: Las perturbaciones corresponden a escenarios exploratorios definidos en el software, no se asignan a trayectorias SSP ni a un horizonte temporal específico.
+=== P50 ===
+Fuente: elaboración propia a partir de la configuración de escenarios en optimization.py
+=== P51 ===
+
+=== P52 ===
+Resultados y discusión  
+=== P53 ===
+Desempeño predictivo de los modelos evaluados
+=== P54 ===
+Cinco modelos fueron comparados mediante validación cruzada con cinco particiones. En la Tabla 3 se presentan los promedios y en la Figura 2 se comparan las métricas: MAE (Figura 2a), RMSE (Figura 2b) y el R2 (Figura 2c). Ridge consiguió mayor R2 promedio (0,4778) y el RMSE más bajo (7,2511), mientras que la DNN se situó como el menor MAE (6,2126). Por tanto, según la métrica aplicada, la clasificación dependió de ella, y la mayor complejidad neuronal por la misma no presentó una mejora evidente. Estos valores recogen el rendimiento sobre las tres salidas modeladas pero no se puede entender como precisión frente a medidas de campo, es más, las diferencias numéricas, por sí mismas, no marcan una superioridad estadística.
+=== P55 ===
+Tabla 3. Resultados de desempeño predictivo promedio de los modelos evaluados mediante validación cruzada
+=== P56 ===
+Nota: MAE: error absoluto medio; RMSE: raíz del error cuadrático medio; : coeficiente de determinación. DNN: red neuronal profunda; MLP: perceptrón multicapa. Las métricas sintetizan el desempeño sobre las tres variables de respuesta y las cinco particiones. Los índices MAE y RMSE aparecen como en sus dimensiones originales ;  es adimensional.
+=== P57 ===
+Fuente: Elaboración propia a partir de los resultados mostrados por el sistema.
+=== P58 ===
+
+=== P59 ===
+Figura 2. Desempeño predictivo agregado de cinco modelos.
+=== P60 ===
+Nota: (a) MAE; (b) RMSE; (c) R². Los números corresponden a los promedios especificados en la Tabla 3 para tres resultados modelados y cinco particiones. Verde: mejor valor numérico de cada métrica; no indica significación estadística.
+=== P61 ===
+Fuente: elaborado por los autores a partir de la Tabla 3 del manuscrito.
+=== P62 ===
+La evaluación reportó un contraste de Friedman estadísticamente significativo (; ). El análisis de Nemenyi mostró que existe una diferencia entre Ridge y XGBoost (), sin diferencias relevantes en los demás pares al nivel 0,05. Estos resultados son exploratorio y no demuestran una superioridad general de Ridge. El reporte mantiene las salidas estadísticas, pero no los MAE individuales por partición que resultan necesarios para poder recalcularlas por separado.
+=== P63 ===
+El uso de modelos sustitutos para aproximar las respuestas de simulaciones multiagente es un enfoque descrito por Angione et al. (2022). En el ámbito agrícola, Shang et al. (2024) midieron sustitutos neuronales del modelo FarmDyn, evaluando compensaciones entre ajuste predictivo, tiempo de inferencia y requerimientos de datos. Estas evidencias muestran que el proceso de selección debe considerar diversos criterios de rendimiento. En nuestra ejecución, Ridge había mostrado el mayor R² promedio y el menor RMSE, mientras que la DNN mostraba el menor MAE. La selección del modelo neuronal para exportar se relaciona al criterio que se discute en Materiales y Métodos y no se debía entender como una mejor respuesta en términos globales. Las mejoras computacionales que se documentan en la literatura deben medirse específicamente en el contexto del prototipo.
+=== P64 ===
+Optimización multiobjetivo y selección de soluciones en el escenario actual  
+=== P65 ===
+El módulo de optimización aplica NSGA-II para investigar configuraciones de cobertura y manejo que produzcan índices de rendimiento agrícola y abundancia de polinizadores favorecidos por el modelo predictivo. Las soluciones no dominadas permiten estudiar las alternativas en lo que se refiere a compromisos entre ambos objetivos. Entre las alternativas generadas, el sistema selecciona mediante una puntuación, que combina el cambio del índice de rendimiento, la variación porcentual de abundancia, el índice de diversidad y una penalización por no cumplir el criterio de mejora conjunta. Esta selección se debe a una regla operativa en la aplicación que se ha implementado para su gestión y no a un proceso geométrico para el hallazgo del punto de rodilla.
+=== P66 ===
+Se exportaron 64 alternativas en la ejecución del escenario actual. La Figura 3a muestra los índices predichos de rendimiento de los cultivos y de la abundancia de los polinizadores. También muestra la línea base heurística y la solución elegida a partir de la función de puntuación. Esta última presentó un índice de rendimiento de 118,251 frente a 102,871 de la línea base (+15,380 puntos) y un índice de abundancia de 106,669 frente a 85,031 (+25,45 %). La composición varió del 74,40 % de cultivo, 20,00 % de área natural y 5,60 % de cobertura floral al 55,428 %, 41,091 % y 3,481 %, respectivamente (Figura 3b). Estos resultados son correspondientes a predicciones exploratorias de entradas fuera del rango del entrenamiento, y no permiten atribuir los cambios a una variable de manejo concreta.
+=== P67 ===
+
+=== P68 ===
+Figura 3. Soluciones de optimización y composición de coberturas en el contexto actual.
+=== P69 ===
+Nota: (a) Las 64 alternativas exportadas, la línea de base heurística y la solución seleccionada por medio de la función de puntuación. Los valores se muestran redondeados y no interpolados; la no dominancia estricta no está preservada en todos los puntos. (b) Composición porcentual de las coberturas inicial y seleccionada. Temperatura: 23,55 °C; precipitación: 925,05 mm calculadas heurísticamente. Área natural mínima: 20%. Modelo: surrogate_20261008_221709. Ejecución que incluye entradas constituídas fuera del rango de entrenamiento siendo este punto una exploración del modelo, sin validación en campo.
+=== P70 ===
+Fuente: elaboración propia a partir de las salidas exportadas del optimizador.
+=== P71 ===
+
+=== P72 ===
+La exploración multiobjetivo permite explorar alternativas agroambientales (Bonato et al., 2025), aunque una solución no dominada no es una garantía de mejoras con respecto de la línea base. La prueba del terreno también es baluarte a la cautela: Raderschall et al. (2022) hallaron que el profit de polinización en haba, era independiente de los tratamientos de franja floral y de suplementación de colmenas. En el extremo Lenzi et al. (2026) analizaron déficits en polinización en perales en función de elementos locales y paisajísticos. Todas estas aportaciones evidencian la necesidad de corroborar los efectos según cada contexto; no pueden validar las relaciones parametrizadas del prototipo.
+=== P73 ===
+Los escenarios cálido, seco y extremo se implementaron mediante perturbaciones exploratorias, aunque esta evaluación contiene sólo los resultados del escenario actual. Los autores Moss et al. (2021), aplicando el marco DPSIR a agroecosistemas del Reino Unido, analizaron efectos climáticos directos sobre la biodiversidad y efectos indirectos relacionados con respuestas de manejo, aunque nuestro análisis explícitamente no representa esa interacción, Kenna et al. (2021) verificaron la relación entre temperatura y desempeño de vuelo de abejorros, y Sepúlveda-Rodríguez et al. (2024) hallaron que la termorregulación dependía del estado conductual. Estos mecanismos no están representados explícitamente en el sistema, de modo que las variaciones de sus índices no pueden servir para atribuir efectos fisiológicos específicos ni para prever consecuencias de campo sin las calibraciones y validaciones adicionales que requiría dicha especificación.
+=== P74 ===
+Representación espacial de las configuraciones de manejo
+=== P75 ===
+La interfaz ilustra en cartografía y en un modelo tridimensional las proporciones de cultivo, de área natural y de cobertura floral de la configuración inicial y de la recomendada. La ilustración posee una malla de 10 × 10 celdas, independiente de la de 18 × 18 del simulador multiagente. El servicio de elevación utiliza fuentes públicas y emplea una superficie plana cuando no obtiene datos. Estas vistas tienen un fin ilustrativo: el optimizador manipula porcentajes de cobertura y variables de manejo, pero no determina la ubicación ni la conectividad más óptima de los parches. De forma que el tipo de representación sirve para comparar dichas composiciones del paisaje, sin demostrar corredores funcionales, distancias de desplazamiento de los polinizadores ni alteraciones microclimáticas.
+=== P76 ===
+El estudio de González et al. (2026) documenta efectos de franjas florales sobre comunidades de invertebrados y describe vacíos de conocimiento. Este antecedente justifica su consideración como alternativa de manejo, pero no permite atribuir beneficios a partir de las distribuciones ilustrativas generadas por nuestra interfaz.
+=== P77 ===
+Soporte a la decisión, trazabilidad y limitaciones  
+=== P78 ===
+En este conjunto, el sistema complementa, junto a las configuraciones que se han seleccionado y configurado mediante NSGA-II, las recomendaciones narrativas y una alternativa heurística en el caso de contar con un servicio de generación de texto no disponible. No se espera que se haga una revisión, con lo que requeriría este tipo de recomendaciones narrativas, ya que las menciones a distintos tipos de especies, corredores y prácticas, de los que no se han modelado, no son resultados calculados ni validados por el optimizador. La persistencia y los metadatos facilitan una parte de la traslación de los resultados, pero no son métricas de la exportación que tengan en cuenta una valoración validada en la red que ha sido utilizada; la reproducción requeriría almacenar información, datos, parámetros, semillas y el modelo. Sibona et al. (2025) añaden conocimiento del humano en su toma de decisiones en un framework de eco-ciberfísica dirigido a la robótica. Nuestra prueba consiste en un prototipo que no ha implementado este marco, pero es un antecedente que avala la consideración de una participación especializada en la puesta en práctica del mismo.
+=== P79 ===
+Visser et al. (2026) caracterizan a los gemelos de ecosistemas a partir de la posibilidad de una relación con un sistema concreto, su interacción dinámica así como la integración de datos y modelos. En lo que respecta a ese marco, las limitaciones fundamentales del prototipo son las respuestas modeladas, la no validación en campo y la representación agregada del paisaje. A su vez, Eeraerts et al. (2024) hallaron que los déficits en la polinización y su relación con las visitas de insectos eran dependientes de la variedad cultivar de arándano, lo que intensifica la necesidad de la validación para cada cultivo o variedad. El control geográfico realiza una comprobación de la proximidad a la zona de referencia, pero no de la cobertura del dominio de entrenamiento. La ejecución recurrió a una temperatura de 23,55 °C, fuera del intervalo entrenado de 14,31-18,69 °C; la solución escogida también se encontraba por encima de los rangos observados de plaguicidas, diversidad paisajística y, de forma marginal, manejo del suelo. Sus predicciones requieren validación independiente. Por otro lado, para los porcentajes de cobertura optimizados, la determinación de la localización y conectividad de los parches no es factible.
+=== P80 ===
+La evaluación se realizó bajo escalado de salidas antes de la partición, y las redes, mediante parada temprana evaluada a posteriori. Cuando se activa el ajuste de hiperparámetros, este se produce de manera previa a la validación cruzada, pero sin ser anidado. La exportación escoge una red de una partición; estas circunstancias limitan la interpretación de las métricas y la evaluación precisa de las mismas, exiguiendo una evaluación independiente. La calibración regional y el análisis de sensibilidad global e incertidumbre permanecen pendientes y, por lo tanto, determinan que el sistema no puede atribuir resultados verificables de Sobol ni recomendaciones agronómicas validadas. Una futura aplicación territorial debe también ser aprovechada para evaluar la relación entre administración, manejo y la gobernanza en la tierra estudiada por Hull (2024), dimensiones que no considera el actual optimizador. 
+=== P81 ===
+
+=== P82 ===
+Conclusiones
+=== P83 ===
+Se construyó un prototipo de gemelo digital agroecológico que incorpora simulación multi-agente, un modelo neuronal y optimización NSGA-II para explotar compromisos entre índices modelizados de rendimiento agrícola y abundancia de polinizadores. En la evaluación ejecutada, Ridge obtuvo el mejor promedio de R² y el menor RMSE, mientras que la DNN dio el menor MAE. La comparación exhibió que la mayor complejidad neuronal no produjo una mejora tenue; la exportación de un modelo neuronal fue acorde al criterio implementado en el sistema y no a su mejoramiento global.
+=== P84 ===
+El modelo permite ahondar en configuraciones de cobertura y manejo ante perturbaciones climáticas, contrastar alternativas y formular recomendaciones contando con carácter narrativo. Su aportación corresponde a una herramienta computacional de exploración, sin haber demostrado incrementos en productividad, recuperación de poblaciones y/o conectividad en el campo. Su aplicación agrícola requeriría revisar el protocolo predictivo, calibrar el modelo con observaciones regionales, evaluar su desempeño con datos independientes y comprobar la fidelidad de las recomendaciones. La optimización espacial explícita y los análisis de sensibilidad e incertidumbre quedan como líneas de desarrollo futuro.
+=== P85 ===
+Contribución de los autores
+=== P86 ===
+Jean Marko Flores Pacheco: conceptualización, metodología, software, validación, redacción del primer borrador y redacción–revisión y edición. Jesús Daniel Ordóñez Ugarte: metodología, software, análisis formal, visualización y redacción–revisión y edición. Juan Pedro Santos Fernández: supervisión, validación y redacción–revisión y edición.
+=== P87 ===
+
+=== P88 ===
+Implicaciones éticas
+=== P89 ===
+Los autores indican que el estudio se encuentra en un estado de evolución con en el que no presenta implicaciones éticas.
+=== P90 ===
+
+=== P91 ===
+Conflicto de interés
+=== P92 ===
+Los autores indican que no hay conflictos de interés en este estudio.
+=== P93 ===
+
+=== P94 ===
+Financiación
+=== P95 ===
+Los autores declaran que el presente estudio no recibió financiación.   
+=== P96 ===
+
+=== P97 ===
+Declaración de disponibilidad de datos
+=== P98 ===
+El código fuente y la configuración del prototipo están disponibles bajo licencia MIT en https://github.com/JMarkoFlores/gemelo-digital-polinizadores. La información pública proviene de NASA POWER y GBIF y mantiene los términos de uso de las personas recopiladoras. Los autores preservan el conjunto generado de 320 muestras, el modelo surrogate_20261008_221709, sus metadatos, el reporte de evaluación, las exportaciones de optimización y los scripts de auditoría. Estos materiales se encuentran pendientes de publicación como material complementario. No se conservaron los errores individuales por partición necesarios para recalcular independientemente las pruebas estadísticas.
+=== P99 ===
+Referencias 
+=== P100 ===
+Albayrak, A. (2026). A multi-layered digital twin framework for smart agriculture and livestock: System architecture and implementation challenges. Information and Software Technology, 195, 108139. https://doi.org/10.1016/j.infsof.2026.108139
+=== P101 ===
+Angione, C., Silverman, E., & Yaneske, E. (2022). Using machine learning as a surrogate model for agent-based simulations. PLOS ONE, 17(2), e0263150. https://doi.org/10.1371/journal.pone.0263150
+=== P102 ===
+Bonato, M., Burian, A., Equihua, J. A., Cord, A. F., Bartkowski, B., & Strauch, M. (2025). Minimizing trade-offs in agricultural landscapes through optimal spatial allocation of agri-environmental practices. Journal of Environmental Management, 393, 126939. https://doi.org/10.1016/j.jenvman.2025.126939
+=== P103 ===
+de Koning, K., Broekhuijsen, J., Kühn, I., Ovaskainen, O., Taubert, F., Endresen, D., Schigel, D., & Grimm, V. (2023). Digital twins: Dynamic model-data fusion for ecology. Trends in Ecology & Evolution, 38(10), 916–926. https://doi.org/10.1016/j.tree.2023.04.010
+=== P104 ===
+Eeraerts, M., Chabert, S., DeVetter, L. W., Batáry, P., Ternest, J. J., Verheyen, K., Bobiwash, K., Brouwer, K., García, D., de Groot, G. A., Gibbs, J., Goldstein, L., Kleijn, D., Melathopoulos, A., Miller, S. Z., Miñarro, M., Montero-Castaño, A., Nicholson, C. C., Perkins, J. A., … Isaacs, R. (2024). Pollination deficits and their relation with insect pollinator visitation are cultivar-dependent in an entomophilous crop. Agriculture, Ecosystems & Environment, 369, 109036. https://doi.org/10.1016/j.agee.2024.109036
+=== P105 ===
+Escribà-Gelonch, M., Liang, S., van Schalkwyk, P., Fisk, I., Long, N. V. D., & Hessel, V. (2024). Digital twins in agriculture: Orchestration and applications. Journal of Agricultural and Food Chemistry, 72(19), 10737–10752. https://doi.org/10.1021/acs.jafc.4c01934
+=== P106 ===
+González, E., Knapp, M., Arisnabarreta, C., & Štrobl, M. (2026). Wildflower strip effects on invertebrate communities in agroecosystems: Consolidated evidence and persisting knowledge gaps. Biological Conservation, 318, 111860. https://doi.org/10.1016/j.biocon.2026.111860
+=== P107 ===
+Groeneveld, J., Martinovic, T., Rossi, T., Salamon, O., Sara-aho, K., & Grimm, V. (2024). Prototype biodiversity digital twin: Honey bees in agricultural landscapes. Research Ideas and Outcomes, 10, e125167. https://doi.org/10.3897/rio.10.e125167
+=== P108 ===
+Horn, J., Becher, M. A., Johst, K., Kennedy, P. J., Osborne, J. L., Radchuk, V., & Grimm, V. (2021). Honey bee colony performance affected by crop diversity and farmland structure: A modeling framework. Ecological Applications, 31(1), e02216. https://doi.org/10.1002/eap.2216
+=== P109 ===
+Hull, S. A. (2024). All for one and one for all? Exploring the nexus of land administration, land management and land governance. Land Use Policy, 144, 107248. https://doi.org/10.1016/j.landusepol.2024.107248
+=== P110 ===
+Kenna, D., Pawar, S., & Gill, R. J. (2021). Thermal flight performance reveals impact of warming on bumblebee foraging potential. Functional Ecology, 35(11), 2508–2522. https://doi.org/10.1111/1365-2435.13887
+=== P111 ===
+Lenzi, L., Arnan, X., Bosch, J., Bordoni, A., Zavatta, L., Magagnoli, S., Morelli, A., & Sgolastra, F. (2026). Widespread pollination deficits in pear (Pyrus communis L.) orchards: The role of pollinators, landscape context and pesticide risk. Agriculture, Ecosystems & Environment, 398, 110113. https://doi.org/10.1016/j.agee.2025.110113
+=== P112 ===
+Moss, E. D., Evans, D. M., & Atkins, J. P. (2021). Investigating the impacts of climate change on ecosystem services in UK agro-ecosystems: An application of the DPSIR framework. Land Use Policy, 105, 105394. https://doi.org/10.1016/j.landusepol.2021.105394
+=== P113 ===
+Niemann, J.-H., Klus, S., Djurdjevac Conrad, N., & Schütte, C. (2024). Koopman-based surrogate models for multi-objective optimization of agent-based systems. Physica D: Nonlinear Phenomena, 460, 134052. https://doi.org/10.1016/j.physd.2024.134052
+=== P114 ===
+Purcell, W., & Neubauer, T. (2023). Digital twins in agriculture: A state-of-the-art review. Smart Agricultural Technology, 3, 100094. https://doi.org/10.1016/j.atech.2022.100094
+=== P115 ===
+Pylianidis, C., Osinga, S., & Athanasiadis, I. N. (2021). Introducing digital twins to agriculture. Computers and Electronics in Agriculture, 184, 105942. https://doi.org/10.1016/j.compag.2020.105942
+=== P116 ===
+Raderschall, C. A., Lundin, O., Lindström, S. A. M., & Bommarco, R. (2022). Annual flower strips and honeybee hive supplementation differently affect arthropod guilds and ecosystem services in a mass-flowering crop. Agriculture, Ecosystems & Environment, 326, 107754. https://doi.org/10.1016/j.agee.2021.107754
+=== P117 ===
+Reilly, J., Bartomeus, I., Simpson, D., Allen-Perkins, A., Garibaldi, L., & Winfree, R. (2024). Wild insects and honey bees are equally important to crop yields in a global analysis. Global Ecology and Biogeography, 33(7), e13843. https://doi.org/10.1111/geb.13843
+=== P118 ===
+Santibañez, F., Joseph, J., Abramson, G., Kuperman, M. N., Laguna, M. F., & Garibaldi, L. A. (2022). Designing crop pollination services: A spatially explicit agent-based model for real agricultural landscapes. Ecological Modelling, 472, 110094. https://doi.org/10.1016/j.ecolmodel.2022.110094
+=== P119 ===
+Sepúlveda-Rodríguez, G., Roberts, K. T., Araújo, P., Lehmann, P., & Baird, E. (2024). Bumblebee thermoregulation at increasing temperatures is affected by behavioral state. Journal of Thermal Biology, 121, 103830. https://doi.org/10.1016/j.jtherbio.2024.103830
+=== P120 ===
+Shang, L., Wang, J., Schäfer, D., Heckelei, T., Gall, J., Appel, F., & Storm, H. (2024). Surrogate modelling of a detailed farm-level model using deep learning. Journal of Agricultural Economics, 75(1), 235–260. https://doi.org/10.1111/1477-9552.12543
+=== P121 ===
+Sibona, F., Harrison, N., Wallace, N., Stevens, C., Sukkarieh, S., Raubenheimer, D., Simpson, S. J., & González, L. A. (2025). A framework to enable eco-cyber-physical systems for robotics-focused digital twins in smart farming. Journal of Field Robotics, 42(6), 3016–3037. https://doi.org/10.1002/rob.22562
+=== P122 ===
+Tagarakis, A. C., Benos, L., Kyriakarakos, G., Pearson, S., Sørensen, C. G., & Bochtis, D. (2024). Digital twins in agriculture and forestry: A review. Sensors, 24(10), 3117. https://doi.org/10.3390/s24103117
+=== P123 ===
+Verdouw, C., Tekinerdogan, B., Beulens, A., & Wolfert, S. (2021). Digital twins in smart farming. Agricultural Systems, 189, 103046. https://doi.org/10.1016/j.agsy.2020.103046
+=== P124 ===
+Visser, M. E., Hengeveld, G. M., de Kraker, J., Athanasiadis, I. N., Bakker, E. S., Kissling, W. D., Nmor, S., Philippart, C. J. M., Soetaert, K., Vriend, S. J. G., Woutersen, A., Zhao, Z., Zhan, Q., & Hof, A. F. (2026). Digital twins as a tool for ecosystem research. Trends in Ecology & Evolution, 41(8), 715–725. https://doi.org/10.1016/j.tree.2026.04.016
+
+=== TABLE 0 ===
+Componente | Parámetro | Valor o Intervalo | Unidad o interpretación
+Variables de decisión | Área de cultivo | 40–85 | % del paisaje
+Variables de decisión | Área natural | –45 | % del paisaje
+Variables de decisión | Cobertura floral | 3–20 | % del paisaje
+Variables de decisión | Nivel de plaguicidas | 0–100 | Índice de intensidad
+Variables de decisión | Manejo del suelo | 45–95 | Índice de manejo
+Núcleo ABM (Mesa) | Dimensiones de la grilla | 18 × 18 | 324 celdas
+Núcleo ABM (Mesa) | Duración máxima | 30 | Pasos de simulación
+Núcleo ABM (Mesa) | Recurso floral inicial, antes de ajustes | Cultivo: 1,0–1,9; natural: 3,6–5,0; floral: 3,1–4,3 | Unidades internas del modelo
+Núcleo ABM (Mesa) | Ingesta máxima y costo energético fijo | 1,65 y 0,40 | Unidades internas por paso
+Núcleo ABM (Mesa) | Umbrales de reproducción y eliminación | y | Energía interna del agente
+NSGA-II | Población y generaciones | 64 y 40 | Individuos y generaciones
+NSGA-II | Semilla de optimización | 42 | Control de aleatoriedad
+NSGA-II | Objetivos | Maximizar rendimiento y abundancia de polinizadores | Índices modelados
+NSGA-II | Restricciones | Coberturas sumadas ≤100%; área natural ≥ | Restricciones de cobertura
+
+=== TABLE 1 ===
+Escenario | Cambio de temperatura respecto de la línea base (°C) | Cambio de precipitación respecto de la línea base (mm)
+Actual | 0,0 | 0
+Cálido | +1,8 | −40
+Seco | +0,9 | −140
+Extremo | +2,6 | −220
+
+=== TABLE 2 ===
+Modelo / Algoritmo | MAE | RMSE | 
+Regresión Ridge | 6,2429 | 7,2511 | 0,4778
+DNN | 6,2126 | 7,3354 | 0,4712
+Autoencoder+MLP | 6,3104 | 7,4420 | 0,4568
+Random Forest | 6,3952 | 7,6569 | 0,4352
+XGBoost | 6,9295 | 8,1605 | 0,3838

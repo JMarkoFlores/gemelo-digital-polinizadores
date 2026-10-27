@@ -3,6 +3,7 @@ import pandas as pd
 import streamlit as st
 import plotly.express as px
 from scipy import stats
+from export_helpers import render_high_res_chart, render_table_with_excel
 
 def cohen_d(x, y):
     # x: compare model error, y: best model error
@@ -135,7 +136,13 @@ def render_robust_tests_tab() -> None:
     }
     
     st.markdown("##### 📋 Pruebas Estadísticas Pareadas (T7)")
-    st.dataframe(df_tests.style.format(format_dict, na_rep="- (Ref)"), use_container_width=True)
+    render_table_with_excel(
+        df_tests.style.format(format_dict, na_rep="- (Ref)"),
+        filename="T7_pruebas_estadisticas_pareadas",
+        key_suffix="robust_t7",
+        sheet_name="Pruebas_Pareadas",
+        help_text="Descarga la tabla de pruebas estadísticas pareadas (T7) en formato Excel (.xlsx).",
+    )
     
     nota_metodologica = "Nota metodológica: estas pruebas asumen independencia entre observaciones; al proceder de validación cruzada, dicha independencia es parcial, lo que puede subestimar la varianza real de los errores (Dietterich, 1998; Nadeau & Bengio, 2003). Los resultados deben interpretarse como una referencia complementaria al Test de Friedman/Nemenyi, que sí opera correctamente a nivel de fold."
     st.caption(f"*{nota_metodologica}*")
@@ -246,7 +253,14 @@ def render_robust_tests_tab() -> None:
         df_friedman_ranks = df_friedman_ranks[["Modelo", "Rango Promedio", "Posición"]]
 
         st.markdown("##### 📋 Tabla de Rangos Promedio por Modelo (Test de Friedman) (T8)")
-        st.dataframe(df_friedman_ranks.style.format({"Rango Promedio": "{:.2f}"}), use_container_width=True, hide_index=True)
+        render_table_with_excel(
+            df_friedman_ranks.style.format({"Rango Promedio": "{:.2f}"}),
+            filename="T8_rangos_promedio_friedman",
+            key_suffix="robust_t8",
+            sheet_name="Rangos_Friedman",
+            hide_index=True,
+            help_text="Descarga la tabla de rangos promedio de Friedman (T8) en formato Excel (.xlsx).",
+        )
 
         top_ranked_model = df_friedman_ranks.iloc[0]["Modelo"]
         top_rank_val = df_friedman_ranks.iloc[0]["Rango Promedio"]
@@ -271,7 +285,11 @@ def render_robust_tests_tab() -> None:
         )
         fig_friedman.update_traces(texttemplate="%{text:.2f}", textposition="outside")
         fig_friedman.update_layout(height=380, margin=dict(l=0, r=0, t=40, b=0), yaxis=dict(range=[0, len(model_names) + 0.5]))
-        st.plotly_chart(fig_friedman, use_container_width=True)
+        render_high_res_chart(
+            fig_friedman,
+            filename="F10_rangos_promedio_error_friedman",
+            key_suffix="robust_f10",
+        )
 
         with st.container(border=True):
             st.markdown("##### 🌐 Análisis de Varianza Global (Test de Friedman) (F10)")
@@ -309,7 +327,14 @@ def render_robust_tests_tab() -> None:
             
             # Tabla T9 (caso con significancia: Matriz de p-valores Post-Hoc Nemenyi)
             st.markdown("##### 📋 Matriz de p-valores Post-Hoc de Nemenyi (T9)")
-            st.dataframe(nemenyi_pvals.style.format("{:.4f}"), use_container_width=True)
+            render_table_with_excel(
+                nemenyi_pvals.style.format("{:.4f}"),
+                filename="T9_matriz_pvalores_nemenyi",
+                key_suffix="robust_t9_nemenyi",
+                sheet_name="Nemenyi_Pvalores",
+                include_index=True,
+                help_text="Descarga la matriz de p-valores de Nemenyi (T9) en formato Excel (.xlsx).",
+            )
 
             with st.container(border=True):
                 st.markdown("##### 📋 Análisis de Matriz de Comparaciones Múltiples (T9)")
@@ -329,7 +354,11 @@ def render_robust_tests_tab() -> None:
                 labels=dict(color="p-valor")
             )
             fig_nemenyi.update_layout(height=500, margin=dict(l=0, r=0, t=40, b=0))
-            st.plotly_chart(fig_nemenyi, use_container_width=True)
+            render_high_res_chart(
+                fig_nemenyi,
+                filename="F11_matriz_pvalores_nemenyi",
+                key_suffix="robust_f11",
+            )
 
             with st.container(border=True):
                 st.markdown("##### 📊 Análisis Post-Hoc (Test de Nemenyi) (F11)")
@@ -370,7 +399,14 @@ def render_robust_tests_tab() -> None:
             df_t9 = pd.DataFrame(t9_rows)
             
             st.markdown("##### 📋 Magnitud de Efecto y Significancia vs. Baseline (Filtro Post-Hoc) (T9)")
-            st.dataframe(df_t9.style.format({"D de Cohen vs. Baseline": "{:+.4f}"}), use_container_width=True, hide_index=True)
+            render_table_with_excel(
+                df_t9.style.format({"D de Cohen vs. Baseline": "{:+.4f}"}),
+                filename="T9_magnitud_efecto_baseline",
+                key_suffix="robust_t9_cohen",
+                sheet_name="Efecto_Baseline",
+                hide_index=True,
+                help_text="Descarga la tabla de magnitud de efecto Cohen y significancia (T9) en formato Excel (.xlsx).",
+            )
 
             with st.container(border=True):
                 st.markdown("##### 📊 Análisis Post-Hoc (Test de Nemenyi) (T9)")
