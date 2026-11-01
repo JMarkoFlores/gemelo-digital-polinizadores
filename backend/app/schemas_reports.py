@@ -52,44 +52,70 @@ class OperationalReportResponse(BaseModel):
 
 class ManagementKpis(BaseModel):
     total_simulaciones: int
-    rendimiento_promedio_base: float
-    rendimiento_promedio_optimo: float
-    delta_rendimiento_promedio: float
-    delta_rendimiento_pct: float
-    abundancia_polinizadores_base: float
-    abundancia_polinizadores_optima: float
-    delta_abundancia_promedio: float
-    delta_abundancia_pct: float
-    diversidad_polinizadores_base: float
-    diversidad_polinizadores_optima: float
-    delta_diversidad_promedio: float
-    tasa_cumplimiento_hipotesis: float
-    simulaciones_cumplen_hipotesis: int
-    simulaciones_no_cumplen: int
+    simulaciones_evaluables: int = 0
+    simulaciones_no_evaluables: int = 0
+    rendimiento_promedio_base: float | None = None
+    rendimiento_promedio_optimo: float | None = None
+    delta_rendimiento_promedio: float | None = None
+    delta_rendimiento_pct: float | None = None
+    abundancia_polinizadores_base: float | None = None
+    abundancia_polinizadores_optima: float | None = None
+    delta_abundancia_promedio: float | None = None
+    delta_abundancia_pct: float | None = None
+    diversidad_polinizadores_base: float | None = None
+    diversidad_polinizadores_optima: float | None = None
+    delta_diversidad_promedio: float | None = None
+    tasa_cumplimiento_hipotesis: float | None = None
+    denominador_tasa: str = "evaluables"
+    simulaciones_cumplen_hipotesis: int = 0
+    simulaciones_no_cumplen: int = 0
+    rendimiento_promedio_base_total: float | None = None
+    abundancia_polinizadores_base_total: float | None = None
+    diversidad_polinizadores_base_total: float | None = None
 
 
 class ManagementTemporalEvolutionPoint(BaseModel):
     fecha: str
-    rendimiento_base: float
-    rendimiento_optimo: float
-    delta_rendimiento: float
-    abundancia_base: float
-    abundancia_optima: float
-    delta_abundancia: float
-    diversidad_base: float
-    diversidad_optima: float
+    total_simulaciones: int = 0
+    simulaciones_evaluables: int = 0
+    simulaciones_no_evaluables: int = 0
+    simulaciones_cumplen_hipotesis: int = 0
+    simulaciones_no_cumplen: int = 0
+    rendimiento_base: float | None = None
+    rendimiento_optimo: float | None = None
+    delta_rendimiento: float | None = None
+    abundancia_base: float | None = None
+    abundancia_optima: float | None = None
+    delta_abundancia: float | None = None
+    diversidad_base: float | None = None
+    diversidad_optima: float | None = None
+    delta_diversidad: float | None = None
+    rendimiento_base_total: float | None = None
+    abundancia_base_total: float | None = None
+    diversidad_base_total: float | None = None
 
 
 class RegionManagementItem(BaseModel):
     region: str
     total_simulaciones: int
-    rendimiento_promedio_base: float
-    rendimiento_promedio_optimo: float
-    abundancia_promedio_base: float
-    abundancia_promedio_optimo: float
-    diversidad_promedio_base: float
-    diversidad_promedio_optimo: float
-    tasa_cumplimiento_hipotesis: float
+    simulaciones_evaluables: int = 0
+    simulaciones_no_evaluables: int = 0
+    simulaciones_cumplen_hipotesis: int = 0
+    simulaciones_no_cumplen: int = 0
+    rendimiento_promedio_base: float | None = None
+    rendimiento_promedio_optimo: float | None = None
+    delta_rendimiento_promedio: float | None = None
+    abundancia_promedio_base: float | None = None
+    abundancia_promedio_optimo: float | None = None
+    delta_abundancia_promedio: float | None = None
+    diversidad_promedio_base: float | None = None
+    diversidad_promedio_optimo: float | None = None
+    delta_diversidad_promedio: float | None = None
+    tasa_cumplimiento_hipotesis: float | None = None
+    denominador_tasa: str = "evaluables"
+    rendimiento_promedio_base_total: float | None = None
+    abundancia_promedio_base_total: float | None = None
+    diversidad_promedio_base_total: float | None = None
 
 
 class ParetoConfigurationItem(BaseModel):

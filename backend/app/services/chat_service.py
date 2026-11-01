@@ -87,11 +87,43 @@ def query_simulation_details(db: Session, user: Usuario, simulation_id: int) -> 
         }
 
     yb = _extract_metric(sim.metricas_base, "crop_yield_index", "rendimiento", default=0.0)
-    yo = _extract_metric(sim.metricas_optimas, "crop_yield_index", "rendimiento", default=yb)
     pb = _extract_metric(sim.metricas_base, "pollinator_abundance_index", "polinizadores", default=0.0)
-    po = _extract_metric(sim.metricas_optimas, "pollinator_abundance_index", "polinizadores", default=pb)
     db_val = _extract_metric(sim.metricas_base, "pollinator_diversity_index", "diversidad", default=0.0)
-    do_val = _extract_metric(sim.metricas_optimas, "pollinator_diversity_index", "diversidad", default=db_val)
+
+    has_opt = sim.metricas_optimas is not None and isinstance(sim.metricas_optimas, dict)
+
+    if not has_opt:
+        return {
+            "status": "success",
+            "encontrada": True,
+            "tiene_solucion_optima": False,
+            "simulacion_id": sim.id,
+            "fecha": sim.fecha.strftime("%Y-%m-%d %H:%M:%S") if sim.fecha else "N/A",
+            "region": _extract_region(sim),
+            "usuario_id": sim.usuario_id,
+            "variables_entrada": {
+                "nivel_pesticidas": sim.variables_entrada.get("pesticide_level", sim.variables_entrada.get("pesticidas")) if isinstance(sim.variables_entrada, dict) else None,
+                "area_natural_minima_pct": sim.variables_entrada.get("min_natural_area_pct", sim.variables_entrada.get("area_natural_minima")) if isinstance(sim.variables_entrada, dict) else None,
+                "escenario_climatico": sim.variables_entrada.get("climate_scenario", sim.variables_entrada.get("escenario", "actual")) if isinstance(sim.variables_entrada, dict) else "actual",
+            },
+            "metricas_base": {
+                "rendimiento": round(yb, 2),
+                "abundancia_polinizadores": round(pb, 2),
+                "diversidad_polinizadores": round(db_val, 2) if db_val else None,
+            },
+            "metricas_optimas": None,
+            "mejoras": {
+                "delta_rendimiento": None,
+                "delta_polinizadores_porcentaje": None,
+                "estado": "no_evaluable",
+            },
+            "total_soluciones_pareto": len(sim.frente_pareto) if isinstance(sim.frente_pareto, list) else 0,
+            "mensaje": "La simulación no produjo una solución óptima admisible (infactible o sin convergencia).",
+        }
+
+    yo = _extract_metric(sim.metricas_optimas, "crop_yield_index", "rendimiento", default=0.0)
+    po = _extract_metric(sim.metricas_optimas, "pollinator_abundance_index", "polinizadores", default=0.0)
+    do_val = _extract_metric(sim.metricas_optimas, "pollinator_diversity_index", "diversidad", default=0.0)
 
     delta_yield = round(yo - yb, 2)
     delta_poll_pct = round(((po - pb) / max(1.0, pb)) * 100.0, 2)
@@ -99,14 +131,15 @@ def query_simulation_details(db: Session, user: Usuario, simulation_id: int) -> 
     return {
         "status": "success",
         "encontrada": True,
+        "tiene_solucion_optima": True,
         "simulacion_id": sim.id,
         "fecha": sim.fecha.strftime("%Y-%m-%d %H:%M:%S") if sim.fecha else "N/A",
         "region": _extract_region(sim),
         "usuario_id": sim.usuario_id,
         "variables_entrada": {
-            "nivel_pesticidas": sim.variables_entrada.get("pesticide_level", sim.variables_entrada.get("pesticidas")),
-            "area_natural_minima_pct": sim.variables_entrada.get("min_natural_area_pct", sim.variables_entrada.get("area_natural_minima")),
-            "escenario_climatico": sim.variables_entrada.get("climate_scenario", sim.variables_entrada.get("escenario", "actual")),
+            "nivel_pesticidas": sim.variables_entrada.get("pesticide_level", sim.variables_entrada.get("pesticidas")) if isinstance(sim.variables_entrada, dict) else None,
+            "area_natural_minima_pct": sim.variables_entrada.get("min_natural_area_pct", sim.variables_entrada.get("area_natural_minima")) if isinstance(sim.variables_entrada, dict) else None,
+            "escenario_climatico": sim.variables_entrada.get("climate_scenario", sim.variables_entrada.get("escenario", "actual")) if isinstance(sim.variables_entrada, dict) else "actual",
         },
         "metricas_base": {
             "rendimiento": round(yb, 2),
@@ -127,6 +160,7 @@ def query_simulation_details(db: Session, user: Usuario, simulation_id: int) -> 
         "mejoras": {
             "delta_rendimiento": delta_yield,
             "delta_polinizadores_porcentaje": f"+{delta_poll_pct}%" if delta_poll_pct >= 0 else f"{delta_poll_pct}%",
+            "estado": "evaluable",
         },
         "total_soluciones_pareto": len(sim.frente_pareto) if isinstance(sim.frente_pareto, list) else 0,
     }
@@ -199,16 +233,17 @@ def query_simulations_summary(db: Session, user: Usuario) -> dict[str, Any]:
 
     sims = query.order_by(Simulacion.fecha.desc()).all()
 
-    recent = [
-        {
+    recent = []
+    for s in sims[:5]:
+        has_opt = s.metricas_optimas is not None and isinstance(s.metricas_optimas, dict)
+        recent.append({
             "id": s.id,
             "fecha": s.fecha.strftime("%Y-%m-%d %H:%M") if s.fecha else "N/A",
             "region": _extract_region(s),
-            "rendimiento_optimo": _extract_metric(s.metricas_optimas, "crop_yield_index", "rendimiento"),
-            "polinizadores_optimos": _extract_metric(s.metricas_optimas, "pollinator_abundance_index", "polinizadores"),
-        }
-        for s in sims[:5]
-    ]
+            "rendimiento_optimo": _extract_metric(s.metricas_optimas, "crop_yield_index", "rendimiento") if has_opt else None,
+            "polinizadores_optimos": _extract_metric(s.metricas_optimas, "pollinator_abundance_index", "polinizadores") if has_opt else None,
+            "tiene_solucion_optima": has_opt,
+        })
 
     return {
         "status": "success",
@@ -329,13 +364,26 @@ def generate_local_fallback_reply(
         sid = sim["simulacion_id"]
         fecha = sim["fecha"]
         region = sim["region"]
-        base_y = sim["metricas_base"]["rendimiento"]
+        pesticidas = sim.get("variables_entrada", {}).get("nivel_pesticidas", "N/A")
+        nat_pct = sim.get("variables_entrada", {}).get("area_natural_minima_pct", "N/A")
+        base_y = sim.get("metricas_base", {}).get("rendimiento", "N/A")
+        base_p = sim.get("metricas_base", {}).get("abundancia_polinizadores", "N/A")
+
+        if not sim.get("tiene_solucion_optima") or not sim.get("metricas_optimas"):
+            return (
+                f"ℹ️ **Detalles de la Simulación #{sid}:**\n\n"
+                f"- **Fecha:** {fecha}\n"
+                f"- **Región / Parcela:** {region}\n"
+                f"- **Variables de Entrada:** Nivel de pesticidas: {pesticidas}% | Área natural mínima: {nat_pct}%\n"
+                f"- **Rendimiento Agrícola Base:** {base_y}\n"
+                f"- **Abundancia Base de Polinizadores:** {base_p}\n"
+                f"- **Resultado:** No se encontró una solución viable en el espacio explorado (simulación infactible). No hay métricas óptimas ni mejoras evaluables.\n"
+                f"- **Soluciones Pareto:** 0 configuraciones admisibles."
+            )
+
         opt_y = sim["metricas_optimas"]["rendimiento"]
-        base_p = sim["metricas_base"]["abundancia_polinizadores"]
         opt_p = sim["metricas_optimas"]["abundancia_polinizadores"]
         delta_p = sim["mejoras"]["delta_polinizadores_porcentaje"]
-        pesticidas = sim["variables_entrada"]["nivel_pesticidas"]
-        nat_pct = sim["variables_entrada"]["area_natural_minima_pct"]
 
         return (
             f"📊 **Resultados de la Simulación #{sid}:**\n\n"

@@ -1,0 +1,49 @@
+{
+  "protocol_version": "test_tuning_technical_check",
+  "description": "Comprobación técnica acotada de tuning interno sin afectar dataset principal",
+  "test_only": true,
+  "seed": 999,
+  "data": {
+    "n_samples": 20,
+    "abm_policy": "corrected_none",
+    "enforce_coverage_constraint": true
+  },
+  "outer_cv": {
+    "n_splits": 2,
+    "shuffle": true,
+    "seed": 999,
+    "group_duplicates": true
+  },
+  "inner_cv": {
+    "n_splits": 2,
+    "shuffle": true,
+    "seed": 1999
+  },
+  "selection": {
+    "primary_metric": "macro_mae",
+    "tie_breaker_metric": "macro_rmse",
+    "direction": "minimize",
+    "scale": "original_target_units",
+    "description": "Comprobación técnica de selección"
+  },
+  "models": {
+    "ridge": {
+      "enabled": true,
+      "param_grid": [
+        {"alpha": 0.5},
+        {"alpha": 5.0}
+      ]
+    },
+    "random_forest": {
+      "enabled": true,
+      "param_grid": [
+        {"n_estimators": 5, "max_depth": 3, "min_samples_split": 2},
+        {"n_estimators": 10, "max_depth": 3, "min_samples_split": 2}
+      ]
+    }
+  },
+  "execution": {
+    "n_jobs": 1,
+    "random_seed": 999
+  }
+}

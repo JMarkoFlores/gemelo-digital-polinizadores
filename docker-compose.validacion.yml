@@ -1,0 +1,5 @@
+services:
+  frontend:
+    image: gemelo-digital-polinizadores-frontend:latest
+  streamlit:
+    image: polinizadores_revision-streamlit:latest

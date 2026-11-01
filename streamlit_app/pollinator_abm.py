@@ -1,11 +1,37 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any, Optional
 
 import numpy as np
 import pandas as pd
-from mesa import Agent, Model
-from mesa.space import MultiGrid
+try:
+    from mesa import Agent, Model
+    from mesa.space import MultiGrid
+except ImportError:
+    # Minimal stub if mesa is not installed locally
+    class Agent:
+        def __init__(self, unique_id: int, model: Any) -> None:
+            self.unique_id = unique_id
+            self.model = model
+            self.pos = (0, 0)
+        def step(self) -> None: pass
+    class MultiGrid:
+        def __init__(self, width: int, height: int, torus: bool = False) -> None:
+            self.width, self.height = width, height
+        def get_neighborhood(self, pos, moore=True, include_center=True): return [pos]
+        def move_agent(self, agent, pos): agent.pos = pos
+        def place_agent(self, agent, pos): agent.pos = pos
+        def remove_agent(self, agent): pass
+    class Model:
+        def __init__(self, seed: Optional[int] = None) -> None:
+            import random
+            self.random = random.Random(seed)
+            self._current_id = 0
+        def next_id(self) -> int:
+            self._current_id += 1
+            return self._current_id
+
 try:
     from mesa.time import RandomActivation
 except ImportError:
@@ -19,9 +45,9 @@ except ImportError:
             if agent in self._agents:
                 self._agents.remove(agent)
         def step(self) -> None:
-            import random
             shuffled = list(self._agents)
-            random.shuffle(shuffled)
+            # Usar el generador pseudoaleatorio del modelo para reproducibilidad determinista
+            self.model.random.shuffle(shuffled)
             for agent in shuffled:
                 if agent in self._agents:
                     agent.step()
@@ -145,6 +171,8 @@ class PollinatorLandscapeModel(Model):
             self.step()
 
         final_population = self.schedule.get_agent_count()
+        # NOTA METODOLÓGICA (AUDITORÍA): Esta diversidad es una función lineal directa
+        # de los parámetros del paisaje, no una propiedad emergente del conteo taxonómico de agentes.
         diversity = (
             8
             + self.scenario.natural_area_pct * 0.38
@@ -168,12 +196,34 @@ def run_example_simulation(scenario: ABMScenario) -> dict[str, float | list[int]
     return model.run()
 
 
-def enrich_dataset_with_abm(dataframe: pd.DataFrame, random_state: int = 42) -> pd.DataFrame:
+def enrich_dataset_with_abm(
+    dataframe: pd.DataFrame,
+    random_state: int = 42,
+    policy: str = "corrected_full",
+    max_simulations: Optional[int] = None,
+) -> pd.DataFrame:
+    """
+    Enriquece el dataset con simulaciones ABM bajo una política explícita y documentada:
+      - 'corrected_full': enriquece todas las filas uniformemente (o hasta max_simulations en smoke tests).
+      - 'historical_partial': reproduce el modo histórico en las primeras 120 filas (para auditoría).
+      - 'corrected_none': no aplica simulación; retorna DataFrame intacto.
+    """
+    if policy == "corrected_none":
+        return dataframe.copy()
+
     enriched = dataframe.copy()
     abundance_values: list[float] = []
     diversity_values: list[float] = []
 
-    sample_limit = min(len(enriched), 120)
+    n_rows = len(enriched)
+    if policy == "historical_partial":
+        sample_limit = min(n_rows, 120)
+    else:
+        sample_limit = n_rows
+
+    if max_simulations is not None:
+        sample_limit = min(sample_limit, max_simulations)
+
     for index, row in enriched.iloc[:sample_limit].iterrows():
         scenario = ABMScenario(
             crop_area_pct=float(row["crop_area_pct"]),
@@ -183,14 +233,14 @@ def enrich_dataset_with_abm(dataframe: pd.DataFrame, random_state: int = 42) -> 
             soil_management_score=float(row["soil_management_score"]),
             temperature_c=float(row["temperature_c"]),
             landscape_diversity=float(row["landscape_diversity"]),
-            initial_pollinators=max(30, int(28 + row["natural_area_pct"] * 0.8)),
+            initial_pollinators=max(30, int(28 + float(row["natural_area_pct"]) * 0.8)),
             seed=random_state + int(index),
         )
         result = run_example_simulation(scenario)
         abundance_values.append(float(np.clip(result["mean_population"] * 1.25, 8, 120)))
         diversity_values.append(float(result["diversity_index"]))
 
-    if sample_limit < len(enriched):
+    if sample_limit < n_rows:
         tail = enriched.iloc[sample_limit:]
         abundance_values.extend(tail["pollinator_abundance_index"].tolist())
         diversity_values.extend(tail["pollinator_diversity_index"].tolist())

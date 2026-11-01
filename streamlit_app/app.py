@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import io
 import json
 import re
@@ -20,10 +21,9 @@ from data_pipeline import (
     generate_synthetic_dataset,
     summarize_dataset,
     build_real_public_dataset,
+    process_uploaded_csv_data,
 )
 from pollinator_abm import ABMScenario, run_example_simulation
-from training import export_model_bundle, train_surrogate_model
-from advanced_training import train_and_evaluate_all_models
 from reports import generate_excel_report, generate_word_report, generate_pdf_report
 from robust_tests import render_robust_tests_tab
 from export_helpers import (
@@ -137,6 +137,7 @@ def initialize_state() -> None:
     st.session_state.setdefault("data_source_type", None)
     st.session_state.setdefault("data_source_label", None)
     st.session_state.setdefault("data_source_details", None)
+    st.session_state.setdefault("active_dataset_identity", None)
 
 
 def render_header() -> None:
@@ -231,6 +232,7 @@ def render_dataset_tab() -> None:
                     "Generar dataset sintético",
                     "Cargar CSV propio",
                 ],
+                key="data_source_selector",
                 label_visibility="visible",
             )
             enrich_with_abm = st.toggle("Enriquecer con corridas ABM", value=True)
@@ -298,6 +300,8 @@ def render_dataset_tab() -> None:
                             st.session_state.dataset = df_public
                             st.session_state.dataset_metadata = meta_public
                             st.session_state.data_source_type = "publico_gbif_nasa_power"
+                            pub_h = hashlib.sha256(df_public.to_csv(index=False).encode("utf-8")).hexdigest()
+                            st.session_state.active_dataset_identity = f"publico:{selected_region}:{pub_h}"
                             st.session_state.data_source_label = f"Dataset Público Real: GBIF + NASA POWER ({selected_region})"
                             st.session_state.data_source_details = {
                                 "fuente_datos": "publico_gbif_nasa_power",
@@ -331,6 +335,8 @@ def render_dataset_tab() -> None:
                         st.session_state.dataset = synth_df
                         st.session_state.dataset_metadata = None
                         st.session_state.data_source_type = "sintetico"
+                        syn_h = hashlib.sha256(synth_df.to_csv(index=False).encode("utf-8")).hexdigest()
+                        st.session_state.active_dataset_identity = f"sintetico:{sample_size}:{random_state}:{enrich_with_abm}:{syn_h}"
                         st.session_state.data_source_label = f"Dataset Sintético ({sample_size} filas, semilla {random_state})"
                         st.session_state.data_source_details = {
                             "fuente_datos": "sintetico",
@@ -342,23 +348,27 @@ def render_dataset_tab() -> None:
                         st.session_state.training_result = None
                         st.session_state.export_result = None
             else:
-                uploaded_file = st.file_uploader("Arrastra o selecciona un CSV", type=["csv"])
+                uploaded_file = st.file_uploader(
+                    "Arrastra o selecciona un CSV",
+                    type=["csv"],
+                    key="user_csv_uploader",
+                )
                 if uploaded_file is not None:
-                    dataframe = pd.read_csv(uploaded_file)
-                    missing = [c for c in FEATURE_COLUMNS + TARGET_COLUMNS if c not in dataframe.columns]
-                    if missing:
-                        st.error("El CSV debe incluir las columnas mínimas: " + ", ".join(FEATURE_COLUMNS + TARGET_COLUMNS))
-                    else:
-                        st.session_state.dataset = dataframe
-                        st.session_state.dataset_metadata = None
-                        st.session_state.data_source_type = "csv_propio"
-                        st.session_state.data_source_label = f"CSV Propio: {uploaded_file.name} ({len(dataframe)} filas)"
-                        st.session_state.data_source_details = {
-                            "fuente_datos": "csv_propio",
-                            "origen_detalle": "Dataset cargado externamente en CSV por el usuario",
-                            "filename": uploaded_file.name,
-                            "n_samples": len(dataframe),
-                        }
+                    file_bytes = uploaded_file.getvalue()
+                    ok, msg = process_uploaded_csv_data(
+                        file_bytes=file_bytes,
+                        filename=uploaded_file.name,
+                        session_state=st.session_state,
+                    )
+                    if not ok:
+                        st.error(msg)
+                else:
+                    if st.session_state.get("data_source_type") == "csv_propio":
+                        st.session_state.active_dataset_identity = None
+                        st.session_state.dataset = None
+                        st.session_state.data_source_type = None
+                        st.session_state.data_source_label = None
+                        st.session_state.data_source_details = None
                         st.session_state.training_result = None
                         st.session_state.export_result = None
 
@@ -844,53 +854,75 @@ def render_training_tab() -> None:
 
     st.markdown(
         """
-        - División de datos: validación cruzada (`K-Fold CV` barajado y adaptado al dataset).
-        - Modelos tabulares: ajuste con MultiOutputRegressor.
-        - Modelos secuenciales: ajuste multi-fold y ensamblaje de resultados (Redes Neuronales).
-        - Objetivo de seleccion: mejor `R2`, luego `MAE` y `RMSE`.
+        - **Metodología:** Validación cruzada anidada (`Nested CV`) sin contaminación.
+        - **Modelos evaluados:** Ridge, Random Forest, XGBoost, DNN y Bottleneck Supervisado.
+        - **Criterio de selección:** Menor `MAE macro` en unidades originales de las variables objetivo.
+        - **Hiperparámetros finales:** Selección agregada sobre todos los folds internos sin peeking al test externo.
         """
     )
     
     active_label = st.session_state.get("data_source_label") or f"Dataset activo ({len(dataset)} filas)"
     st.info(f"🎯 **Dataset activo para entrenamiento:** {active_label} ({len(dataset)} registros)", icon="📊")
     
-    c_train1, c_train2 = st.columns([1, 1], gap="medium")
+    c_train1, c_train2, c_train3 = st.columns([1, 1, 1], gap="medium")
     with c_train1:
-        k_folds = st.slider("Número de Folds (K-Fold CV)", min_value=3, max_value=10, value=5, help="Define el número de particiones para la validación cruzada.")
+        execution_mode = st.radio(
+            "🔬 Modo Metodológico",
+            options=["scientific", "exploratory"],
+            format_func=lambda x: "Modo Científico Estricto (AGROSAVIA)" if x == "scientific" else "Modo Exploratorio / Rápido",
+            help="El Modo Científico exige todas las dependencias instaladas y rechaza omisiones silenciosas.",
+        )
+        is_scientific = (execution_mode == "scientific")
     with c_train2:
+        k_folds = st.slider("Número de Folds (K-Fold CV)", min_value=2, max_value=10, value=5, help="Define el número de particiones para la validación cruzada.")
+    with c_train3:
         st.markdown("<div style='height: 4px'></div>", unsafe_allow_html=True)
         tune_hyperparams = st.toggle(
             "🎛️ Activar sintonización de hiperparámetros (tuning)",
             value=False,
-            help="Ejecuta RandomizedSearchCV (Random Forest, XGBoost, Ridge) y exploración de arquitectura (DNN, Autoencoder) antes de evaluar con CV. Toma más tiempo de cómputo.",
+            help="Evalúa la cuadrícula de hiperparámetros dentro de cada partición interna de la CV anidada sin contaminación.",
         )
         if tune_hyperparams:
-            st.caption("⚡ *Modo tuning activo: los mejores hiperparámetros alimentarán el entrenamiento final.*")
+            st.caption("⚡ *Modo tuning activo: los mejores hiperparámetros agregados alimentarán el reajuste final.*")
     
     if st.button("Entrenar y comparar modelos", use_container_width=True):
+        from scientific_core.data_audit import audit_dataset
+        audit_res = audit_dataset(dataset, policy="corrected")
+        if not audit_res.get("audit_passed", False):
+            issues_list = audit_res.get("rejection_reasons") or audit_res.get("issues") or []
+            st.error(f"❌ El dataset no superó la auditoría de integridad metodológica: {issues_list}")
+            st.stop()
         progress_bar = st.progress(0)
         status_text = st.empty()
         
         spinner_msg = (
-            f"Sintonizando hiperparámetros y entrenando con {k_folds} folds... esto puede tardar unos instantes"
+            f"Sintonizando hiperparámetros y evaluando con Nested CV ({k_folds} folds)... esto puede tardar unos instantes"
             if tune_hyperparams
-            else f"Entrenando modelos con {k_folds} folds... esto puede tardar un momento"
+            else f"Evaluando modelos con Nested CV ({k_folds} folds)... esto puede tardar un momento"
         )
         with st.spinner(spinner_msg):
-            t_res = train_and_evaluate_all_models(
-                dataframe=dataset,
-                progress_bar=progress_bar,
-                status_text=status_text,
-                k_folds=k_folds,
-                tune_hyperparameters=tune_hyperparams,
-            )
-            t_res["data_source_type"] = st.session_state.get("data_source_type", "sintetico")
-            t_res["data_source_label"] = st.session_state.get("data_source_label", active_label)
-            t_res["data_source_details"] = dict(st.session_state.get("data_source_details") or {
-                "fuente_datos": st.session_state.get("data_source_type", "sintetico"),
-                "n_samples": len(dataset),
-            })
-            st.session_state.training_result = t_res
+            from streamlit_app.adapter import execute_streamlit_training_run
+            try:
+                t_res = execute_streamlit_training_run(
+                    dataframe=dataset,
+                    k_folds=k_folds,
+                    tune_hyperparameters=tune_hyperparams,
+                    scientific_mode=is_scientific,
+                    random_state=42,
+                    data_source_type=st.session_state.get("data_source_type", "sintetico"),
+                    data_source_label=st.session_state.get("data_source_label", active_label),
+                    data_source_details=dict(st.session_state.get("data_source_details") or {}),
+                    progress_bar=progress_bar,
+                    status_text=status_text,
+                )
+                t_res["dataset_identity"] = st.session_state.get("active_dataset_identity")
+                st.session_state.training_result = t_res
+            except Exception as train_err:
+                logger.error("Error en entrenamiento Streamlit: %s", train_err)
+                st.error(f"❌ Error durante el entrenamiento y persistencia: {train_err}")
+                if is_scientific:
+                    st.stop()
+
             progress_bar.empty()
             status_text.empty()
             
@@ -974,8 +1006,12 @@ def render_training_tab() -> None:
         comparativa_df["MAPE"] = results_df["CV_MAPE_Mean"].round(4)
         comparativa_df["MaxError"] = results_df["CV_MaxError_Mean"].round(4)
         comparativa_df["MedAE"] = results_df["CV_MedAE_Mean"].round(4)
-        comparativa_df["Train Seconds"] = results_df["Train_Time_Mean"].round(4)
-        comparativa_df["Infer Seconds"] = results_df["Infer_Time_Mean"].round(4)
+        comparativa_df["Train Seconds"] = results_df["Train_Time_Mean"].apply(
+            lambda v: f"{v:.4f} s" if pd.notna(v) and v is not None else "No medido"
+        )
+        comparativa_df["Infer Seconds"] = results_df["Infer_Time_Mean"].apply(
+            lambda v: f"{v:.4f} s" if pd.notna(v) and v is not None else "No medido"
+        )
         
         render_table_with_excel(
             comparativa_df,
@@ -1190,21 +1226,27 @@ def render_training_tab() -> None:
                         X_full = st.session_state.dataset[FEATURE_COLUMNS].to_numpy(dtype=np.float32)
                         y_full = st.session_state.dataset[TARGET_COLUMNS].to_numpy(dtype=np.float32)
                         
-                        if "dnn" in selected_model.lower() or "autoencoder" in selected_model.lower():
+                        if hasattr(model_obj, "scaler_y"):
+                            p_base = model_obj.predict(X_full)
+                        elif "dnn" in selected_model.lower() or "autoencoder" in selected_model.lower():
                             p_base_scaled = model_obj.predict(X_full, verbose=0)
+                            p_base = training_result["target_scaler"].inverse_transform(p_base_scaled)
                         else:
                             p_base_scaled = model_obj.predict(X_full)
-                        p_base = training_result["target_scaler"].inverse_transform(p_base_scaled)
+                            p_base = training_result["target_scaler"].inverse_transform(p_base_scaled)
                         base_mae = mean_absolute_error(y_full[:, 0], p_base[:, 0])
                         
                         for i, feat in enumerate(FEATURE_COLUMNS):
                             X_perm = X_full.copy()
                             np.random.shuffle(X_perm[:, i])
-                            if "dnn" in selected_model.lower() or "autoencoder" in selected_model.lower():
+                            if hasattr(model_obj, "scaler_y"):
+                                p_perm = model_obj.predict(X_perm)
+                            elif "dnn" in selected_model.lower() or "autoencoder" in selected_model.lower():
                                 p_scaled = model_obj.predict(X_perm, verbose=0)
+                                p_perm = training_result["target_scaler"].inverse_transform(p_scaled)
                             else:
                                 p_scaled = model_obj.predict(X_perm)
-                            p_perm = training_result["target_scaler"].inverse_transform(p_scaled)
+                                p_perm = training_result["target_scaler"].inverse_transform(p_scaled)
                             
                             perm_mae = mean_absolute_error(y_full[:, 0], p_perm[:, 0])
                             importances.append(max(0, perm_mae - base_mae))
@@ -1251,13 +1293,19 @@ def render_training_tab() -> None:
 def render_export_tab() -> None:
     st.markdown("### 💾 Fase 6: Despliegue (Deployment) — Exportación y Consumo")
     st.caption(
-        "Empaquetado y exportación del modelo seleccionado (`modelo_optimizado.h5`), "
-        "escaladores y metadata con trazabilidad geoespacial para su consumo por el backend FastAPI y el cliente React."
+        "Empaquetado y exportación del bundle universal del modelo seleccionado (modelo, escaladores, "
+        "metadatos y sumas SHA-256) con trazabilidad geoespacial para su consumo por el backend FastAPI y el cliente React."
     )
     dataset = st.session_state.dataset
     training_result = st.session_state.training_result
     if not training_result:
-        st.info("ℹ️  Completa el entrenamiento para exportar `modelo_optimizado.h5` al volumen compartido y generar reportes.")
+        st.info("ℹ️ Completa el entrenamiento para exportar el bundle universal del modelo al volumen compartido y generar reportes.")
+        return
+
+    active_identity = st.session_state.get("active_dataset_identity")
+    trained_identity = training_result.get("dataset_identity")
+    if active_identity and trained_identity and active_identity != trained_identity:
+        st.warning("⚠️ El dataset activo en memoria ha cambiado respecto al dataset con el que se entrenó el modelo. Vuelve a entrenar el modelo antes de exportar.")
         return
 
     results_df = training_result["results_df"]
@@ -1287,8 +1335,12 @@ def render_export_tab() -> None:
     comparativa_df["MAPE"] = results_df["CV_MAPE_Mean"].round(4)
     comparativa_df["MaxError"] = results_df["CV_MaxError_Mean"].round(4)
     comparativa_df["MedAE"] = results_df["CV_MedAE_Mean"].round(4)
-    comparativa_df["Train Seconds"] = results_df["Train_Time_Mean"].round(4)
-    comparativa_df["Infer Seconds"] = results_df["Infer_Time_Mean"].round(4)
+    comparativa_df["Train Seconds"] = results_df["Train_Time_Mean"].apply(
+        lambda v: f"{v:.4f} s" if pd.notna(v) and v is not None else "No medido"
+    )
+    comparativa_df["Infer Seconds"] = results_df["Infer_Time_Mean"].apply(
+        lambda v: f"{v:.4f} s" if pd.notna(v) and v is not None else "No medido"
+    )
 
     dataset_info_df = pd.DataFrame([
         {"Propiedad": "Cantidad de Datos Entrenados (Filas)", "Detalle": str(len(dataset))},
@@ -1379,64 +1431,23 @@ def render_export_tab() -> None:
     with col2:
         with st.container(border=True):
             st.markdown("#### 💾 Destino del modelo")
-            st.code(str(MODEL_DIR / "modelo_optimizado.h5"), language=None)
-            st.caption("Nota: El backend React requiere un archivo H5, por lo que se exportará la mejor Red Neuronal/Híbrida encontrada.")
+            st.code(str(MODEL_DIR), language=None)
+            st.caption(f"Se exportará el bundle universal del modelo ganador: **{best_overall}**")
             if st.button("📤 Exportar modelo entrenado", use_container_width=True, type="primary"):
-                # Mocking a metrics dict for compatibility with existing export
-                metrics = {"general": {"mae": results_df.iloc[0]["CV_MAE_Mean"], "rmse": 0, "r2": 0}}
-                export_res = export_model_bundle(
-                    best_keras_model,
-                    MODEL_DIR,
-                    metrics,
-                    target_scaler.mean_.tolist(),
-                    target_scaler.scale_.tolist(),
-                )
-
-                # Enriquecer metadata con trazabilidad explícita y verificable
-                metadata_path = Path(export_res["metadata_path"])
+                from streamlit_app.adapter import export_streamlit_model
+                is_test_bundle = bool(training_result.get("test_only", False))
                 try:
-                    meta_dict = json.loads(metadata_path.read_text(encoding="utf-8"))
-                except Exception:
-                    meta_dict = {}
-
-                meta_dict["fuente_datos"] = source_type
-                meta_dict["data_source_label"] = source_label
-                meta_dict["n_samples"] = len(dataset)
-                meta_dict["dataset_rows"] = len(dataset)
-                meta_dict["region_name"] = source_details.get("region_name")
-
-                if source_type == "publico_gbif_nasa_power":
-                    meta_dict["coordinates"] = source_details.get("coordinates")
-                    meta_dict["time_range"] = source_details.get("time_range")
-                    meta_dict["gbif_occurrences"] = source_details.get("gbif", {}).get("total_occurrences")
-                    meta_dict["distinct_species_count"] = source_details.get("gbif", {}).get("distinct_species_count")
-                    meta_dict["species_sample"] = source_details.get("gbif", {}).get("species_sample", [])
-                    meta_dict["clima_resumen"] = {
-                        "temperature_mean": source_details.get("nasa_power", {}).get("temperature_mean"),
-                        "temperature_std": source_details.get("nasa_power", {}).get("temperature_std"),
-                        "precipitation_annual_mean": source_details.get("nasa_power", {}).get("precipitation_annual_mean"),
-                    }
-                    meta_dict["column_provenance"] = source_details.get("column_provenance", {})
-                    meta_dict["crisp_dm_notes"] = "Datos reales públicos integrados vía GBIF API y NASA POWER API."
-                elif source_type == "csv_propio":
-                    meta_dict["filename"] = source_details.get("filename")
-                    meta_dict["origen_detalle"] = "Archivo CSV suministrado por el usuario."
-                else:
-                    meta_dict["random_state"] = source_details.get("random_state", 42)
-                    meta_dict["origen_detalle"] = "Generador estocástico agroecológico calibrado (CRISP-DM)."
-
-                meta_dict["enrich_with_abm"] = source_details.get("enrich_with_abm", True)
-                meta_dict["data_source_details"] = source_details
-                ht_meta = training_result.get("hyperparameter_tuning") or {}
-                meta_dict["hyperparameter_tuning"] = {
-                    "activado": bool(ht_meta.get("activado", False)),
-                    "mejores_params_por_modelo": ht_meta.get("mejores_params_por_modelo"),
-                    "tiempo_total_tuning_segundos": ht_meta.get("tiempo_total_tuning", 0.0),
-                }
-
-                metadata_path.write_text(json.dumps(meta_dict, indent=2, ensure_ascii=False), encoding="utf-8")
-                export_res["metadata"] = meta_dict
-                st.session_state.export_result = export_res
+                    export_res = export_streamlit_model(
+                        training_result=training_result,
+                        export_dir=MODEL_DIR,
+                        force_test_bundle=is_test_bundle,
+                    )
+                    st.session_state.export_result = export_res
+                except Exception as exp_err:
+                    logger.error("Error al exportar modelo en Streamlit: %s", exp_err)
+                    st.error(f"❌ Error al exportar el modelo: {exp_err}")
+                    if training_result.get("scientific_mode", False):
+                        st.stop()
 
         export_result = st.session_state.export_result
         if export_result:

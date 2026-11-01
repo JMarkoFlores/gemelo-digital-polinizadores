@@ -2,50 +2,85 @@ from __future__ import annotations
 
 import json
 import logging
+from pathlib import Path
+import pickle
 import threading
 import time
-from pathlib import Path
-from typing import Any
+from typing import Any, Dict, List, Optional
+import numpy as np
 
-import tensorflow as tf
+try:
+    import tensorflow as tf
+except ImportError:
+    tf = None
 
-from app.config import get_settings
+try:
+    from app.config import get_settings
+except ImportError:
+    class MinimalSettings:
+        model_dir = "modelos_ia"
+        model_filename = "modelo_optimizado.h5"
+        model_metadata_filename = "modelo_optimizado_metadata.json"
+    def get_settings():
+        return MinimalSettings()
 
 logger = logging.getLogger(__name__)
 
+# Límites biofísicos y operativos generales (Hard limits)
+PHYSICAL_BOUNDS = {
+    "crop_area_pct": (0.0, 100.0),
+    "natural_area_pct": (0.0, 100.0),
+    "floral_strips_pct": (0.0, 100.0),
+    "pesticide_level": (0.0, 100.0),
+    "soil_management_score": (0.0, 100.0),
+    "temperature_c": (5.0, 45.0),
+    "precipitation_mm": (0.0, 5000.0),
+    "landscape_diversity": (0.0, 1.0),
+}
+
+FEATURE_BOUNDS = PHYSICAL_BOUNDS
+
 
 class ModelStore:
-    def __init__(self) -> None:
+    def __init__(self, model_dir: Optional[Union[str, Path]] = None, allow_test_bundle: bool = False) -> None:
         settings = get_settings()
-        self.model_dir = Path(settings.model_dir)
+        self.model_dir = Path(model_dir) if model_dir is not None else Path(settings.model_dir)
         self.model_path = self.model_dir / settings.model_filename
         self.metadata_path = self.model_dir / settings.model_metadata_filename
-        self.model: tf.keras.Model | None = None
+        self.model: Any = None
+        self._active_predictor: Any = None
+        self.model_type: str = "unknown"
+        self.bundle_id: str | None = None
+        self.scaler_x: Any = None
+        self.scaler_y: Any = None
         self.metadata: dict[str, Any] = {}
         self.status_message = "Model not loaded"
+        self.last_error: str | None = None
+        self.allow_test_bundle: bool = allow_test_bundle
         self._lock = threading.Lock()
         self._watcher_thread: threading.Thread | None = None
         self._stop_event = threading.Event()
 
     # ── Public API ────────────────────────────────────────────────────────────
 
-    def load(self) -> None:
+    def load(self, raise_on_error: bool = False) -> bool:
         """Try to load the model from disk. Thread-safe."""
         with self._lock:
-            self._do_load()
+            try:
+                self._do_load()
+                return True
+            except Exception as exc:
+                if raise_on_error:
+                    raise
+                return False
 
-    def reload(self) -> None:
-        """Force a reload (same as load, kept for clarity)."""
-        self.load()
+    def reload(self, raise_on_error: bool = False) -> bool:
+        """Force a reload."""
+        return self.load(raise_on_error=raise_on_error)
 
     def start_watcher(self, poll_interval: float = 5.0) -> None:
-        """Start a background thread that reloads the model whenever the
-        .h5 file appears or changes on disk (mtime-based).  This is the
-        key fix: even if the backend starts before Streamlit exports the
-        model, it will pick it up automatically without a container restart.
-        """
         if self._watcher_thread and self._watcher_thread.is_alive():
-            return  # already running
+            return
 
         self._stop_event.clear()
 
@@ -53,27 +88,25 @@ class ModelStore:
             last_mtime: float | None = None
             while not self._stop_event.is_set():
                 try:
-                    if self.model_path.exists():
-                        mtime = self.model_path.stat().st_mtime
+                    active_target = self.model_dir / "active_bundle.json"
+                    if not active_target.exists():
+                        active_target = self.model_dir / "bundle_metadata.json"
+                    if not active_target.exists():
+                        active_target = self.model_path
+
+                    if active_target.exists():
+                        mtime = active_target.stat().st_mtime
                         if mtime != last_mtime:
                             logger.info(
                                 "ModelStore watcher: detected new/updated model at %s – reloading…",
-                                self.model_path,
+                                active_target,
                             )
                             with self._lock:
                                 self._do_load()
                             last_mtime = mtime
                     else:
-                        # File disappeared (e.g. volume removed) – mark as unready
                         if last_mtime is not None:
-                            logger.warning("ModelStore watcher: model file removed, marking unready.")
-                            with self._lock:
-                                self.model = None
-                                self.metadata = {}
-                                self.status_message = (
-                                    f"Model file not found at {self.model_path}. "
-                                    "Train and export the surrogate from Streamlit first."
-                                )
+                            logger.warning("ModelStore watcher: model file removed.")
                             last_mtime = None
                 except Exception as exc:  # noqa: BLE001
                     logger.error("ModelStore watcher error: %s", exc)
@@ -90,46 +123,93 @@ class ModelStore:
     # ── Internal ──────────────────────────────────────────────────────────────
 
     def _do_load(self) -> None:
-        """Actually load/reload from disk. Must be called with self._lock held."""
-        if not self.model_path.exists():
-            self.model = None
-            self.metadata = {}
-            self.status_message = (
-                f"Model file not found at {self.model_path}. "
-                "Train and export the surrogate from Streamlit first."
-            )
-            return
+        """
+        Carga atómica y tolerante a fallos desde disco reutilizando load_bundle de scientific_core (Bloque 2 y Bloque 3).
+        Preserva el modelo previo si la carga o validación del nuevo bundle falla.
+        """
+        from scientific_core.model_bundle import load_bundle
 
         try:
-            self.model = tf.keras.models.load_model(self.model_path, compile=False)
-            self.metadata = self._load_metadata()
-            self.status_message = f"Loaded model from {self.model_path}"
-            fuente = self.metadata.get("fuente_datos", "no registrada")
-            region = self.metadata.get("region_name")
-            region_str = f" | región: {region}" if region else ""
-            n_samples = self.metadata.get("n_samples") or self.metadata.get("dataset_rows")
-            samples_str = f" | registros: {n_samples}" if n_samples else ""
-            logger.info(
-                "Model loaded successfully: %s (versión: %s | fuente_datos: %s%s%s)",
-                self.model_path,
-                self.version,
-                fuente,
-                region_str,
-                samples_str,
+            new_predictor = load_bundle(
+                self.model_dir,
+                allow_test_bundle=getattr(self, "allow_test_bundle", False),
             )
-        except Exception as exc:  # noqa: BLE001
-            self.model = None
-            self.metadata = {}
-            self.status_message = f"Failed to load model: {exc}"
-            logger.error("Failed to load model: %s", exc)
+            # Activación atómica en memoria
+            old_bundle_id = self.bundle_id
+            self._active_predictor = new_predictor
+            self.model = new_predictor.model
+            self.model_type = new_predictor.model_type
+            self.scaler_x = new_predictor.scaler_x
+            self.scaler_y = new_predictor.scaler_y
+            self.metadata = new_predictor.metadata
+            self.bundle_id = new_predictor.bundle_id
+            self.last_error = None
+            self.status_message = f"Model loaded successfully: {new_predictor.bundle_id} ({new_predictor.model_type})"
+            logger.info("ModelStore: %s", self.status_message)
+
+            # Si cambió el bundle, invalidar la caché de optimización
+            if old_bundle_id is not None and old_bundle_id != new_predictor.bundle_id:
+                try:
+                    from backend.app.services.optimization import simulation_cache
+                    simulation_cache.clear()
+                    logger.info("Simulation cache invalidated: %s -> %s", old_bundle_id, new_predictor.bundle_id)
+                except Exception:
+                    pass
+
+        except Exception as exc:
+            self.last_error = str(exc)
+            logger.error("ModelStore error loading bundle from %s: %s", self.model_dir, exc)
+            if self._active_predictor is not None:
+                self.status_message = f"Error recargando bundle: {exc}. Conservando versión previa: {self.bundle_id}"
+                logger.warning("ModelStore: Conservando modelo previo operativo (%s)", self.bundle_id)
+            else:
+                self.model = None
+                self.status_message = f"Error cargando bundle: {exc}"
+            raise
 
     def _load_metadata(self) -> dict[str, Any]:
-        if not self.metadata_path.exists():
-            return {}
-        try:
-            return json.loads(self.metadata_path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError:
-            return {}
+        active_target = self.model_dir / "active_bundle.json"
+        if active_target.exists():
+            try:
+                ainfo = json.loads(active_target.read_text(encoding="utf-8"))
+                bdir = ainfo.get("bundle_dir")
+                if bdir and (self.model_dir / bdir / "bundle_metadata.json").exists():
+                    return json.loads((self.model_dir / bdir / "bundle_metadata.json").read_text(encoding="utf-8"))
+            except Exception:
+                pass
+        meta_candidates = [
+            self.model_dir / "bundle_metadata.json",
+            self.metadata_path,
+            self.model_dir / "modelo_optimizado_metadata.json",
+        ]
+        for p in meta_candidates:
+            if p.exists():
+                try:
+                    return json.loads(p.read_text(encoding="utf-8"))
+                except json.JSONDecodeError:
+                    pass
+        return {}
+
+    def predict(self, X: np.ndarray) -> np.ndarray:
+        """
+        Ejecuta predicción universal aplicando escalado y desescalado de manera idéntica
+        a todas las familias a través del predictor universal validado (Mandato 4).
+        """
+        predictor_snapshot = self._active_predictor
+        if predictor_snapshot is None:
+            if self.model is not None:
+                from scientific_core.model_bundle import UniversalSurrogatePredictor
+                predictor_snapshot = UniversalSurrogatePredictor(
+                    model=self.model,
+                    model_type=self.model_type,
+                    scaler_x=self.scaler_x,
+                    scaler_y=self.scaler_y,
+                    metadata=self.metadata,
+                )
+            else:
+                raise RuntimeError(self.status_message)
+
+        return predictor_snapshot.predict(X)
 
     # ── Properties ────────────────────────────────────────────────────────────
 
@@ -139,7 +219,7 @@ class ModelStore:
 
     @property
     def version(self) -> str | None:
-        return self.metadata.get("version")
+        return self.metadata.get("version") or self.bundle_id
 
     @property
     def fuente_datos(self) -> str | None:
@@ -151,86 +231,93 @@ class ModelStore:
 
     @property
     def region_bounds(self) -> dict[str, float] | None:
-        """Coordenadas y radio de validez agroecológica para modelos entrenados con datos públicos reales."""
         coords = self.metadata.get("coordinates")
-        if isinstance(coords, dict) and "lat" in coords and "lon" in coords and "radius_km" in coords:
-            try:
-                return {
-                    "lat": float(coords["lat"]),
-                    "lon": float(coords["lon"]),
-                    "radius_km": float(coords["radius_km"]),
-                }
-            except (TypeError, ValueError):
-                pass
-
-        details = self.metadata.get("data_source_details")
-        if isinstance(details, dict):
-            coords = details.get("coordinates")
-            if isinstance(coords, dict) and "lat" in coords and "lon" in coords and "radius_km" in coords:
-                try:
-                    return {
-                        "lat": float(coords["lat"]),
-                        "lon": float(coords["lon"]),
-                        "radius_km": float(coords["radius_km"]),
-                    }
-                except (TypeError, ValueError):
-                    pass
+        if isinstance(coords, dict) and "lat" in coords and "lon" in coords:
+            return coords
         return None
 
-    def check_point_in_region(self, lat: float, lon: float, tolerance: float = 0.2) -> dict[str, Any]:
-        """Verifica si un punto o centroide (lat, lon) cae dentro del alcance geográfico válido del modelo activo."""
+    def check_point_in_region(self, lat: float, lon: float) -> dict[str, Any]:
+        """Validación de pertenencia geográfica del punto."""
+        coords = self.region_bounds
+        region_name = self.region_name or "Desconocida"
         bounds = self.region_bounds
-        if not bounds:
-            return {
-                "has_restriction": False,
-                "is_valid": True,
-                "distance_km": None,
-                "allowed_radius_km": None,
-                "max_radius_with_tolerance_km": None,
-                "region_name": self.region_name,
-                "region_bounds": None,
-                "fuente_datos": self.fuente_datos,
-                "message": "Modelo sintético — no calibrado a una región geográfica real (sin restricción espacial).",
-            }
 
-        import math
+        if coords:
+            c_lat = float(coords["lat"])
+            c_lon = float(coords["lon"])
+            radius_km = float(coords.get("radius_km", 35.0))
 
-        r_earth_km = 6371.0
-        d_lat = math.radians(lat - bounds["lat"])
-        d_lon = math.radians(lon - bounds["lon"])
-        a = (
-            math.sin(d_lat / 2.0) ** 2
-            + math.cos(math.radians(bounds["lat"]))
-            * math.cos(math.radians(lat))
-            * math.sin(d_lon / 2.0) ** 2
-        )
-        c = 2.0 * math.atan2(math.sqrt(a), math.sqrt(1.0 - a))
-        distance_km = round(r_earth_km * c, 2)
+            d_lat = (lat - c_lat) * 111.0
+            d_lon = (lon - c_lon) * 111.0 * np.cos(np.radians(c_lat))
+            dist_km = float(np.sqrt(d_lat**2 + d_lon**2))
 
-        allowed_radius_km = float(bounds["radius_km"])
-        max_radius_with_tolerance_km = round(allowed_radius_km * (1.0 + max(0.0, tolerance)), 2)
-        is_valid = distance_km <= max_radius_with_tolerance_km
-
-        region_name = self.region_name or "Región de entrenamiento"
-        if is_valid:
-            message = f"Punto dentro del área agroecológica válida de {region_name} ({distance_km} km del centroide)."
-        else:
+            is_valid = dist_km <= radius_km
             message = (
-                f"⚠️ Esta área está fuera de la región para la que el modelo activo fue entrenado y validado "
-                f"({region_name}). Distancia observada: {distance_km} km (radio máximo permitido con tolerancia: {max_radius_with_tolerance_km} km). "
-                f"Los resultados no serían científicamente válidos. Entrena y activa un modelo para tu región en Streamlit antes de continuar."
+                f"Punto dentro del radio de validez ({dist_km:.1f} km <= {radius_km} km de {region_name})"
+                if is_valid
+                else f"Punto fuera del radio de validez ({dist_km:.1f} km > {radius_km} km de {region_name})"
             )
+        else:
+            is_valid = True
+            message = "Sin restricción geográfica explícita en metadatos."
 
         return {
-            "has_restriction": True,
             "is_valid": is_valid,
-            "distance_km": distance_km,
-            "allowed_radius_km": allowed_radius_km,
-            "max_radius_with_tolerance_km": max_radius_with_tolerance_km,
             "region_name": region_name,
             "region_bounds": bounds,
             "fuente_datos": self.fuente_datos,
             "message": message,
+        }
+
+    def check_domain(self, features: dict[str, float], strict_mode: bool = True) -> dict[str, Any]:
+        """
+        Verifica cumplimiento de:
+          1. Límites biofísicos generales.
+          2. Rangos observados en el entrenamiento del modelo (Mandato 6).
+          3. Coherencia física de suma de coberturas (<= 100%).
+        """
+        violations = []
+
+        # 1. Comprobación contra límites físicos generales
+        for feat, (b_min, b_max) in PHYSICAL_BOUNDS.items():
+            if feat in features:
+                val = float(features[feat])
+                if val < b_min or val > b_max:
+                    violations.append(f"Variable {feat}={val} fuera de límites físicos [{b_min}, {b_max}]")
+
+        # 2. Comprobación contra rangos aprendidos de entrenamiento
+        observed_ranges = (
+            self.metadata.get("observed_training_ranges")
+            or self.metadata.get("observed_ranges")
+        )
+
+        if observed_ranges:
+            for feat, rng in observed_ranges.items():
+                if feat in features:
+                    val = float(features[feat])
+                    r_min, r_max = float(rng[0]), float(rng[1])
+                    if val < r_min or val > r_max:
+                        violations.append(
+                            f"Variable {feat}={val} fuera del rango observado de entrenamiento [{r_min:.2f}, {r_max:.2f}]"
+                        )
+        elif strict_mode and self.metadata.get("schema_version") == "2.0_revision_metodologica":
+            violations.append("Metadatos de rangos observados de entrenamiento ausentes en bundle científico.")
+
+        # 3. Coberturas (física de exclusión)
+        c_pct = float(features.get("crop_area_pct", 0.0))
+        n_pct = float(features.get("natural_area_pct", 0.0))
+        f_pct = float(features.get("floral_strips_pct", 0.0))
+        tot = c_pct + n_pct + f_pct
+        if tot > 100.0001:
+            violations.append(f"Suma de coberturas excede 100% ({tot:.2f}%)")
+
+        return {
+            "is_valid": len(violations) == 0,
+            "violations": violations,
+            "joint_support_warning": (
+                "Aviso metodológico: El cumplimiento univariado de los rangos individuales de entrenamiento "
+                "no demuestra la pertenencia al soporte conjunto multidimensional ni la ausencia de extrapolación fuera de distribución."
+            ),
         }
 
     @property
@@ -245,6 +332,7 @@ class ModelStore:
             "gbif_occurrences": self.metadata.get("gbif_occurrences"),
             "distinct_species_count": self.metadata.get("distinct_species_count"),
             "clima_resumen": self.metadata.get("clima_resumen"),
+            "observed_training_ranges": self.metadata.get("observed_training_ranges"),
         }
 
 

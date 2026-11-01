@@ -15,7 +15,7 @@ class Simulacion(Base):
     coordenadas_geojson: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
     variables_entrada: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
     metricas_base: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
-    metricas_optimas: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    metricas_optimas: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
     frente_pareto: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
     fecha: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 

@@ -229,38 +229,58 @@ def get_management_report(
 
     total_sims = len(simulations)
 
-    yield_base_list: list[float] = []
-    yield_opt_list: list[float] = []
-    poll_base_list: list[float] = []
-    poll_opt_list: list[float] = []
-    div_base_list: list[float] = []
-    div_opt_list: list[float] = []
+    # Listas de línea base total (identificadas separadamente para todas las simulaciones)
+    yield_base_total_list: list[float] = []
+    poll_base_total_list: list[float] = []
+    div_base_total_list: list[float] = []
+
+    # Listas pareadas evaluables (estrictamente simulaciones con solución óptima admisible)
+    yield_base_eval_list: list[float] = []
+    yield_opt_eval_list: list[float] = []
+    poll_base_eval_list: list[float] = []
+    poll_opt_eval_list: list[float] = []
+    div_base_eval_list: list[float] = []
+    div_opt_eval_list: list[float] = []
 
     cumplen_hipotesis = 0
+    sims_evaluables = 0
+    sims_no_evaluables = 0
 
     # Regional structures
     region_stats: dict[str, dict[str, Any]] = defaultdict(
         lambda: {
             "total": 0,
-            "yield_base": [],
-            "yield_opt": [],
-            "poll_base": [],
-            "poll_opt": [],
-            "div_base": [],
-            "div_opt": [],
+            "evaluables": 0,
+            "no_evaluables": 0,
+            "yield_base_total": [],
+            "poll_base_total": [],
+            "div_base_total": [],
+            "yield_base_eval": [],
+            "yield_opt_eval": [],
+            "poll_base_eval": [],
+            "poll_opt_eval": [],
+            "div_base_eval": [],
+            "div_opt_eval": [],
             "cumplen": 0,
         }
     )
 
     # Temporal structures (grouped by day)
-    temporal_stats: dict[str, dict[str, list[float]]] = defaultdict(
+    temporal_stats: dict[str, dict[str, Any]] = defaultdict(
         lambda: {
-            "yb": [],
-            "yo": [],
-            "pb": [],
-            "po": [],
-            "db": [],
-            "do": [],
+            "total": 0,
+            "evaluables": 0,
+            "no_evaluables": 0,
+            "yb_total": [],
+            "pb_total": [],
+            "db_total": [],
+            "yb_eval": [],
+            "yo_eval": [],
+            "pb_eval": [],
+            "po_eval": [],
+            "db_eval": [],
+            "do_eval": [],
+            "cumplen": 0,
         }
     )
 
@@ -272,51 +292,73 @@ def get_management_report(
         day_key = _format_date(s.fecha)
 
         yb = _extract_metric(s.metricas_base, "crop_yield_index", "rendimiento", default=70.0)
-        yo = _extract_metric(s.metricas_optimas, "crop_yield_index", "rendimiento", default=yb)
-
         pb = _extract_metric(s.metricas_base, "pollinator_abundance_index", "polinizadores", default=50.0)
-        po = _extract_metric(s.metricas_optimas, "pollinator_abundance_index", "polinizadores", default=pb)
-
         db_val = _extract_metric(s.metricas_base, "pollinator_diversity_index", "diversidad", default=0.55)
-        do_val = _extract_metric(s.metricas_optimas, "pollinator_diversity_index", "diversidad", default=0.75)
 
-        yield_base_list.append(yb)
-        yield_opt_list.append(yo)
-        poll_base_list.append(pb)
-        poll_opt_list.append(po)
-        div_base_list.append(db_val)
-        div_opt_list.append(do_val)
+        yield_base_total_list.append(yb)
+        poll_base_total_list.append(pb)
+        div_base_total_list.append(db_val)
 
-        # Hypothesis test: delta_yield >= 0 AND delta_pollinators >= 20%
-        dy = yo - yb
-        dp_pct = ((po - pb) / max(1.0, pb)) * 100.0
-        meets = (dy >= 0.0) and (dp_pct >= 20.0)
-        if meets:
-            cumplen_hipotesis += 1
+        has_opt = s.metricas_optimas is not None and isinstance(s.metricas_optimas, dict)
 
-        # Region stats
         rs = region_stats[reg]
         rs["total"] += 1
-        rs["yield_base"].append(yb)
-        rs["yield_opt"].append(yo)
-        rs["poll_base"].append(pb)
-        rs["poll_opt"].append(po)
-        rs["div_base"].append(db_val)
-        rs["div_opt"].append(do_val)
-        if meets:
-            rs["cumplen"] += 1
+        rs["yield_base_total"].append(yb)
+        rs["poll_base_total"].append(pb)
+        rs["div_base_total"].append(db_val)
 
-        # Temporal stats
         ts = temporal_stats[day_key]
-        ts["yb"].append(yb)
-        ts["yo"].append(yo)
-        ts["pb"].append(pb)
-        ts["po"].append(po)
-        ts["db"].append(db_val)
-        ts["do"].append(do_val)
+        ts["total"] += 1
+        ts["yb_total"].append(yb)
+        ts["pb_total"].append(pb)
+        ts["db_total"].append(db_val)
+
+        if has_opt:
+            sims_evaluables += 1
+            yo = _extract_metric(s.metricas_optimas, "crop_yield_index", "rendimiento", default=yb)
+            po = _extract_metric(s.metricas_optimas, "pollinator_abundance_index", "polinizadores", default=pb)
+            do_val = _extract_metric(s.metricas_optimas, "pollinator_diversity_index", "diversidad", default=0.75)
+
+            yield_base_eval_list.append(yb)
+            yield_opt_eval_list.append(yo)
+            poll_base_eval_list.append(pb)
+            poll_opt_eval_list.append(po)
+            div_base_eval_list.append(db_val)
+            div_opt_eval_list.append(do_val)
+
+            # Criterio conjunto pareado sobre la misma observación: delta_yield >= 0 AND delta_pollinators >= 20%
+            dy = yo - yb
+            dp_pct = ((po - pb) / max(1.0, pb)) * 100.0
+            meets = (dy >= 0.0) and (dp_pct >= 20.0)
+            if meets:
+                cumplen_hipotesis += 1
+
+            rs["evaluables"] += 1
+            rs["yield_base_eval"].append(yb)
+            rs["yield_opt_eval"].append(yo)
+            rs["poll_base_eval"].append(pb)
+            rs["poll_opt_eval"].append(po)
+            rs["div_base_eval"].append(db_val)
+            rs["div_opt_eval"].append(do_val)
+            if meets:
+                rs["cumplen"] += 1
+
+            ts["evaluables"] += 1
+            ts["yb_eval"].append(yb)
+            ts["yo_eval"].append(yo)
+            ts["pb_eval"].append(pb)
+            ts["po_eval"].append(po)
+            ts["db_eval"].append(db_val)
+            ts["do_eval"].append(do_val)
+            if meets:
+                ts["cumplen"] += 1
+        else:
+            sims_no_evaluables += 1
+            rs["no_evaluables"] += 1
+            ts["no_evaluables"] += 1
 
         # Extract Pareto front items
-        if isinstance(s.frente_pareto, list):
+        if isinstance(s.frente_pareto, list) and has_opt:
             for candidate in s.frente_pareto:
                 if isinstance(candidate, dict):
                     cyi = _extract_metric(candidate, "crop_yield_index", "rendimiento", default=yo)
@@ -351,59 +393,131 @@ def get_management_report(
                     )
 
     # Compute Global KPIs
-    def _mean(vals: list[float]) -> float:
-        return round(sum(vals) / len(vals), 3) if vals else 0.0
+    def _mean(vals: list[float]) -> float | None:
+        return round(sum(vals) / len(vals), 3) if vals else None
 
-    yb_mean = _mean(yield_base_list)
-    yo_mean = _mean(yield_opt_list)
-    dy_mean = round(yo_mean - yb_mean, 3)
-    dy_pct = round(((yo_mean - yb_mean) / max(1.0, yb_mean)) * 100.0, 2) if yb_mean > 0 else 0.0
+    # Líneas base totales de toda la población (identificadas separadamente)
+    yb_total_mean = _mean(yield_base_total_list)
+    pb_total_mean = _mean(poll_base_total_list)
+    db_total_mean = _mean(div_base_total_list)
 
-    pb_mean = _mean(poll_base_list)
-    po_mean = _mean(poll_opt_list)
-    dp_mean = round(po_mean - pb_mean, 3)
-    dp_pct = round(((po_mean - pb_mean) / max(1.0, pb_mean)) * 100.0, 2) if pb_mean > 0 else 0.0
+    if sims_evaluables > 0:
+        # Comparación pareada estricta sobre la misma población evaluable
+        yb_eval_mean = _mean(yield_base_eval_list)
+        yo_eval_mean = _mean(yield_opt_eval_list)
+        dy_mean = round(yo_eval_mean - yb_eval_mean, 3) if yo_eval_mean is not None and yb_eval_mean is not None else None
+        dy_pct = round(((yo_eval_mean - yb_eval_mean) / max(1.0, yb_eval_mean)) * 100.0, 2) if (yo_eval_mean is not None and yb_eval_mean is not None and yb_eval_mean > 0) else 0.0
 
-    db_mean = _mean(div_base_list)
-    do_mean = _mean(div_opt_list)
-    dd_mean = round(do_mean - db_mean, 3)
+        pb_eval_mean = _mean(poll_base_eval_list)
+        po_eval_mean = _mean(poll_opt_eval_list)
+        dp_mean = round(po_eval_mean - pb_eval_mean, 3) if po_eval_mean is not None and pb_eval_mean is not None else None
+        dp_pct = round(((po_eval_mean - pb_eval_mean) / max(1.0, pb_eval_mean)) * 100.0, 2) if (po_eval_mean is not None and pb_eval_mean is not None and pb_eval_mean > 0) else 0.0
 
-    tasa_hipotesis = round((cumplen_hipotesis / total_sims * 100.0), 2) if total_sims > 0 else 0.0
+        db_eval_mean = _mean(div_base_eval_list)
+        do_eval_mean = _mean(div_opt_eval_list)
+        dd_mean = round(do_eval_mean - db_eval_mean, 3) if do_eval_mean is not None and db_eval_mean is not None else None
+
+        tasa_hipotesis = round((cumplen_hipotesis / sims_evaluables * 100.0), 2)
+        sims_no_cumplen = sims_evaluables - cumplen_hipotesis
+    else:
+        # Ausencia de comparaciones evaluables: no fabricar mejoras con ceros
+        yb_eval_mean = None
+        yo_eval_mean = None
+        dy_mean = None
+        dy_pct = None
+
+        pb_eval_mean = None
+        po_eval_mean = None
+        dp_mean = None
+        dp_pct = None
+
+        db_eval_mean = None
+        do_eval_mean = None
+        dd_mean = None
+
+        tasa_hipotesis = None
+        sims_no_cumplen = 0
 
     kpis = ManagementKpis(
         total_simulaciones=total_sims,
-        rendimiento_promedio_base=yb_mean,
-        rendimiento_promedio_optimo=yo_mean,
+        simulaciones_evaluables=sims_evaluables,
+        simulaciones_no_evaluables=sims_no_evaluables,
+        rendimiento_promedio_base=yb_eval_mean,
+        rendimiento_promedio_optimo=yo_eval_mean,
         delta_rendimiento_promedio=dy_mean,
         delta_rendimiento_pct=dy_pct,
-        abundancia_polinizadores_base=pb_mean,
-        abundancia_polinizadores_optima=po_mean,
+        abundancia_polinizadores_base=pb_eval_mean,
+        abundancia_polinizadores_optima=po_eval_mean,
         delta_abundancia_promedio=dp_mean,
         delta_abundancia_pct=dp_pct,
-        diversidad_polinizadores_base=db_mean,
-        diversidad_polinizadores_optima=do_mean,
+        diversidad_polinizadores_base=db_eval_mean,
+        diversidad_polinizadores_optima=do_eval_mean,
         delta_diversidad_promedio=dd_mean,
         tasa_cumplimiento_hipotesis=tasa_hipotesis,
+        denominador_tasa="evaluables",
         simulaciones_cumplen_hipotesis=cumplen_hipotesis,
-        simulaciones_no_cumplen=total_sims - cumplen_hipotesis,
+        simulaciones_no_cumplen=sims_no_cumplen,
+        rendimiento_promedio_base_total=yb_total_mean,
+        abundancia_polinizadores_base_total=pb_total_mean,
+        diversidad_polinizadores_base_total=db_total_mean,
     )
 
     # Regional comparison table
     comparacion_regiones: list[RegionManagementItem] = []
     for reg_name, data in sorted(region_stats.items(), key=lambda x: x[1]["total"], reverse=True):
         reg_total = data["total"]
-        reg_tasa = round((data["cumplen"] / reg_total * 100.0), 2) if reg_total > 0 else 0.0
+        reg_eval = data["evaluables"]
+        reg_no_eval = data["no_evaluables"]
+        reg_cumplen = data["cumplen"]
+        reg_no_cumplen = reg_eval - reg_cumplen if reg_eval > 0 else 0
+        if reg_eval > 0:
+            reg_yb = _mean(data["yield_base_eval"])
+            reg_yo = _mean(data["yield_opt_eval"])
+            reg_dy = round(reg_yo - reg_yb, 3) if reg_yo is not None and reg_yb is not None else None
+
+            reg_pb = _mean(data["poll_base_eval"])
+            reg_po = _mean(data["poll_opt_eval"])
+            reg_dp = round(reg_po - reg_pb, 3) if reg_po is not None and reg_pb is not None else None
+
+            reg_db = _mean(data["div_base_eval"])
+            reg_do = _mean(data["div_opt_eval"])
+            reg_dd = round(reg_do - reg_db, 3) if reg_do is not None and reg_db is not None else None
+
+            reg_tasa = round((data["cumplen"] / reg_eval * 100.0), 2)
+        else:
+            reg_yb = None
+            reg_yo = None
+            reg_dy = None
+            reg_pb = None
+            reg_po = None
+            reg_dp = None
+            reg_db = None
+            reg_do = None
+            reg_dd = None
+            reg_tasa = None
+
         comparacion_regiones.append(
             RegionManagementItem(
                 region=reg_name,
                 total_simulaciones=reg_total,
-                rendimiento_promedio_base=_mean(data["yield_base"]),
-                rendimiento_promedio_optimo=_mean(data["yield_opt"]),
-                abundancia_promedio_base=_mean(data["poll_base"]),
-                abundancia_promedio_optimo=_mean(data["poll_opt"]),
-                diversidad_promedio_base=_mean(data["div_base"]),
-                diversidad_promedio_optimo=_mean(data["div_opt"]),
+                simulaciones_evaluables=reg_eval,
+                simulaciones_no_evaluables=reg_no_eval,
+                simulaciones_cumplen_hipotesis=reg_cumplen,
+                simulaciones_no_cumplen=reg_no_cumplen,
+                rendimiento_promedio_base=reg_yb,
+                rendimiento_promedio_optimo=reg_yo,
+                delta_rendimiento_promedio=reg_dy,
+                abundancia_promedio_base=reg_pb,
+                abundancia_promedio_optimo=reg_po,
+                delta_abundancia_promedio=reg_dp,
+                diversidad_promedio_base=reg_db,
+                diversidad_promedio_optimo=reg_do,
+                delta_diversidad_promedio=reg_dd,
                 tasa_cumplimiento_hipotesis=reg_tasa,
+                denominador_tasa="evaluables",
+                rendimiento_promedio_base_total=_mean(data["yield_base_total"]),
+                abundancia_promedio_base_total=_mean(data["poll_base_total"]),
+                diversidad_promedio_base_total=_mean(data["div_base_total"]),
             )
         )
 
@@ -411,24 +525,54 @@ def get_management_report(
     evolucion_temporal: list[ManagementTemporalEvolutionPoint] = []
     for d in sorted(temporal_stats.keys()):
         d_data = temporal_stats[d]
-        d_yb = _mean(d_data["yb"])
-        d_yo = _mean(d_data["yo"])
-        d_pb = _mean(d_data["pb"])
-        d_po = _mean(d_data["po"])
-        d_db = _mean(d_data["db"])
-        d_do = _mean(d_data["do"])
+        d_total = d_data["total"]
+        d_eval = d_data["evaluables"]
+        d_no_eval = d_data["no_evaluables"]
+        d_cumplen = d_data["cumplen"]
+        d_no_cumplen = d_eval - d_cumplen if d_eval > 0 else 0
+        if d_eval > 0:
+            d_yb = _mean(d_data["yb_eval"])
+            d_yo = _mean(d_data["yo_eval"])
+            d_dy = round(d_yo - d_yb, 3) if d_yo is not None and d_yb is not None else None
+
+            d_pb = _mean(d_data["pb_eval"])
+            d_po = _mean(d_data["po_eval"])
+            d_dp = round(d_po - d_pb, 3) if d_po is not None and d_pb is not None else None
+
+            d_db = _mean(d_data["db_eval"])
+            d_do = _mean(d_data["do_eval"])
+            d_dd = round(d_do - d_db, 3) if d_do is not None and d_db is not None else None
+        else:
+            d_yb = None
+            d_yo = None
+            d_dy = None
+            d_pb = None
+            d_po = None
+            d_dp = None
+            d_db = None
+            d_do = None
+            d_dd = None
 
         evolucion_temporal.append(
             ManagementTemporalEvolutionPoint(
                 fecha=d,
+                total_simulaciones=d_total,
+                simulaciones_evaluables=d_eval,
+                simulaciones_no_evaluables=d_no_eval,
+                simulaciones_cumplen_hipotesis=d_cumplen,
+                simulaciones_no_cumplen=d_no_cumplen,
                 rendimiento_base=d_yb,
                 rendimiento_optimo=d_yo,
-                delta_rendimiento=round(d_yo - d_yb, 3),
+                delta_rendimiento=d_dy,
                 abundancia_base=d_pb,
                 abundancia_optima=d_po,
-                delta_abundancia=round(d_po - d_pb, 3),
+                delta_abundancia=d_dp,
                 diversidad_base=d_db,
                 diversidad_optima=d_do,
+                delta_diversidad=d_dd,
+                rendimiento_base_total=_mean(d_data["yb_total"]),
+                abundancia_base_total=_mean(d_data["pb_total"]),
+                diversidad_base_total=_mean(d_data["db_total"]),
             )
         )
 

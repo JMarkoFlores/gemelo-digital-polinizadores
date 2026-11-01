@@ -1,0 +1,17 @@
+{
+  "generator_version": "v2_corrected",
+  "dataset_version": "v2_corrected",
+  "historical_version_preserved": "v1_historical",
+  "n_samples": 320,
+  "random_state": 42,
+  "abm_policy": "corrected_full",
+  "abm": {
+    "abm_policy": "corrected_full",
+    "max_abm_simulations": null,
+    "simulations_performed": 320,
+    "status": "completed"
+  },
+  "source_type": "sintetico_generado",
+  "real_data_attributions": false,
+  "provenance_notes": "Dataset sintético calibrado con física de coberturas excluyentes. No atribuido a NASA POWER ni GBIF sin importación verificada."
+}

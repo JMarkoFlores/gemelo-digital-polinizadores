@@ -8,10 +8,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
+COPY backend/requirements.txt .
 RUN pip install --no-cache-dir --default-timeout=1000 --retries 10 -r requirements.txt
 
-COPY . .
+COPY backend /app
+COPY scientific_core /app/scientific_core
+
+ENV PYTHONPATH=/app
 
 EXPOSE 8000
 

@@ -1,0 +1,46 @@
+{
+  "protocol_version": "1.0_revision_smoke",
+  "description": "Configuración técnica smoke aislada para verificación técnica rápida",
+  "test_only": true,
+  "seed": 42,
+  "data": {
+    "n_samples": 40,
+    "abm_policy": "corrected_none",
+    "enforce_coverage_constraint": true
+  },
+  "outer_cv": {
+    "n_splits": 2,
+    "shuffle": true,
+    "seed": 42,
+    "group_duplicates": true
+  },
+  "inner_cv": {
+    "n_splits": 2,
+    "shuffle": true,
+    "seed": 1042
+  },
+  "selection": {
+    "primary_metric": "macro_mae",
+    "tie_breaker_metric": "macro_rmse",
+    "direction": "minimize",
+    "scale": "original_target_units"
+  },
+  "models": {
+    "ridge": {
+      "enabled": true,
+      "param_grid": [
+        {"alpha": 1.0}
+      ]
+    },
+    "random_forest": {
+      "enabled": true,
+      "param_grid": [
+        {"n_estimators": 10, "max_depth": 4, "min_samples_split": 2}
+      ]
+    }
+  },
+  "execution": {
+    "n_jobs": 1,
+    "random_seed": 42
+  }
+}

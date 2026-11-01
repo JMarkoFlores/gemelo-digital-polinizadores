@@ -140,7 +140,7 @@ api.interceptors.response.use(
         const simResult = {
           delta_yield: +(optYield - baseYield),
           delta_pollinators: +(((optPollinators - basePollinators) / basePollinators) * 100).toFixed(1),
-          hypothesis_status: 'HIPÓTESIS CONFIRMADA',
+          hypothesis_status: 'CRITERIO OPERATIVO CUMPLIDO',
           cache_hit: false,
           model_version: 'v1.4.0 (Surrogate DNN-ABM)',
           baseline: {

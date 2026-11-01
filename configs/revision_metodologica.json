@@ -1,0 +1,87 @@
+{
+  "protocol_version": "1.0_revision_metodologica",
+  "description": "Configuración previa a resultados para la evaluación predictiva definitiva sin contaminación",
+  "test_only": false,
+  "seed": 42,
+  "data": {
+    "n_samples": 320,
+    "abm_policy": "corrected_full",
+    "enforce_coverage_constraint": true
+  },
+  "outer_cv": {
+    "n_splits": 5,
+    "shuffle": true,
+    "seed": 42,
+    "group_duplicates": true
+  },
+  "inner_cv": {
+    "n_splits": 3,
+    "shuffle": true,
+    "seed": 1042
+  },
+  "selection": {
+    "primary_metric": "macro_mae",
+    "tie_breaker_metric": "macro_rmse",
+    "direction": "minimize",
+    "scale": "original_target_units",
+    "description": "Media aritmética no ponderada del MAE entre las 3 salidas en su escala original"
+  },
+  "models": {
+    "ridge": {
+      "enabled": true,
+      "param_grid": [
+        {"alpha": 0.1},
+        {"alpha": 1.0},
+        {"alpha": 10.0},
+        {"alpha": 50.0}
+      ]
+    },
+    "random_forest": {
+      "enabled": true,
+      "param_grid": [
+        {"n_estimators": 50, "max_depth": 6, "min_samples_split": 2},
+        {"n_estimators": 100, "max_depth": 10, "min_samples_split": 2},
+        {"n_estimators": 100, "max_depth": null, "min_samples_split": 5},
+        {"n_estimators": 150, "max_depth": 12, "min_samples_split": 2}
+      ]
+    },
+    "xgboost": {
+      "enabled": true,
+      "param_grid": [
+        {"n_estimators": 50, "max_depth": 3, "learning_rate": 0.05},
+        {"n_estimators": 100, "max_depth": 3, "learning_rate": 0.05},
+        {"n_estimators": 100, "max_depth": 5, "learning_rate": 0.03},
+        {"n_estimators": 150, "max_depth": 4, "learning_rate": 0.05}
+      ]
+    },
+    "dnn": {
+      "enabled": true,
+      "param_grid": [
+        {"hidden_units": [64, 64, 32], "learning_rate": 0.0015, "dropout_rate": 0.12},
+        {"hidden_units": [128, 64, 32], "learning_rate": 0.0010, "dropout_rate": 0.10},
+        {"hidden_units": [64, 32, 16], "learning_rate": 0.0020, "dropout_rate": 0.15}
+      ],
+      "max_epochs": 30,
+      "batch_size": 24,
+      "early_stopping_patience": 5,
+      "internal_monitor_val_split": 0.20
+    },
+    "autoencoder_mlp": {
+      "enabled": true,
+      "semantic_note": "Cuello de botella supervisado sin reconstrucción no supervisada",
+      "param_grid": [
+        {"latent_dim": 16, "regressor_units": 64, "learning_rate": 0.0010, "dropout_rate": 0.10},
+        {"latent_dim": 8, "regressor_units": 32, "learning_rate": 0.0015, "dropout_rate": 0.12},
+        {"latent_dim": 24, "regressor_units": 64, "learning_rate": 0.0008, "dropout_rate": 0.08}
+      ],
+      "max_epochs": 30,
+      "batch_size": 24,
+      "early_stopping_patience": 5,
+      "internal_monitor_val_split": 0.20
+    }
+  },
+  "execution": {
+    "n_jobs": 1,
+    "random_seed": 42
+  }
+}

@@ -1,0 +1,76 @@
+{
+  "file_sha256": "0467f8ba1f04c6b9b5d5947074479acada6fdc259029219224e2bf1b4b7abb64",
+  "n_rows": 320,
+  "n_cols": 14,
+  "audit_passed": true,
+  "is_valid": true,
+  "valid": true,
+  "nan_counts": {},
+  "total_nans": 0,
+  "inf_counts": {},
+  "total_infs": 0,
+  "n_duplicate_rows": 0,
+  "n_duplicates": 0,
+  "n_unique_feature_groups": 320,
+  "bounds_violations": {},
+  "observed_ranges": {
+    "crop_area_pct": [
+      31.84,
+      87.1
+    ],
+    "natural_area_pct": [
+      5.26,
+      39.73
+    ],
+    "floral_strips_pct": [
+      1.08,
+      14.99
+    ],
+    "pesticide_level": [
+      0.05,
+      94.95
+    ],
+    "soil_management_score": [
+      10.39,
+      94.9
+    ],
+    "temperature_c": [
+      15.7,
+      32.83
+    ],
+    "precipitation_mm": [
+      296.66,
+      1950.08
+    ],
+    "landscape_diversity": [
+      0.4307,
+      0.96
+    ]
+  },
+  "coverage_violations": 0,
+  "coverage_violations_count": 0,
+  "max_coverage_sum": 98.78,
+  "column_provenance": {
+    "sample_id": "metadato_o_auxiliar",
+    "crop_area_pct": "variable_paisaje_agroecologico",
+    "natural_area_pct": "variable_paisaje_agroecologico",
+    "floral_strips_pct": "variable_paisaje_agroecologico",
+    "pesticide_level": "variable_manejo_agricola",
+    "soil_management_score": "variable_manejo_agricola",
+    "temperature_c": "variable_climatica_sintetica_calibrada",
+    "precipitation_mm": "variable_climatica_sintetica_calibrada",
+    "landscape_diversity": "caracteristica_derivada_consistente",
+    "crop_yield_index": "indice_objetivo_simulado",
+    "pollinator_abundance_index": "indice_objetivo_simulado",
+    "pollinator_diversity_index": "indice_objetivo_simulado",
+    "abm_pollinator_abundance": "enriquecimiento_abm_mesa",
+    "abm_pollinator_diversity": "enriquecimiento_abm_mesa"
+  },
+  "rejection_reasons": [],
+  "issues": [],
+  "errors": [],
+  "source_metadata_declared": {
+    "fuente_datos": "sintetico_calibrado"
+  },
+  "file_sha256_disk": "0467f8ba1f04c6b9b5d5947074479acada6fdc259029219224e2bf1b4b7abb64"
+}

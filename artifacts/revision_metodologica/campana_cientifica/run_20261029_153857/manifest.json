@@ -1,0 +1,60 @@
+{
+  "schema_version": "2.0_revision_metodologica",
+  "run_id": "run_20261029_153857",
+  "started_at_utc": "2026-10-29T15:38:57.978604+00:00",
+  "completed_at_utc": "2026-10-29T15:44:06.101488+00:00",
+  "status": "completed",
+  "test_only": false,
+  "dataset_rows": 320,
+  "dataset_sha256": "0467f8ba1f04c6b9b5d5947074479acada6fdc259029219224e2bf1b4b7abb64",
+  "best_model_id": "ridge",
+  "cv_duration_seconds": 308.0153658390045,
+  "generator_metadata": {
+    "source": "file",
+    "path": "/app/artifacts/revision_metodologica/campana_cientifica/dataset_320_corrected_full.csv"
+  },
+  "dataset_provenance": {
+    "overall_provenance": "sintetico_calibrado",
+    "columns_provenance": {
+      "sample_id": "metadato_o_auxiliar",
+      "crop_area_pct": "variable_paisaje_agroecologico",
+      "natural_area_pct": "variable_paisaje_agroecologico",
+      "floral_strips_pct": "variable_paisaje_agroecologico",
+      "pesticide_level": "variable_manejo_agricola",
+      "soil_management_score": "variable_manejo_agricola",
+      "temperature_c": "variable_climatica_sintetica_calibrada",
+      "precipitation_mm": "variable_climatica_sintetica_calibrada",
+      "landscape_diversity": "caracteristica_derivada_consistente",
+      "crop_yield_index": "indice_objetivo_simulado",
+      "pollinator_abundance_index": "indice_objetivo_simulado",
+      "pollinator_diversity_index": "indice_objetivo_simulado",
+      "abm_pollinator_abundance": "enriquecimiento_abm_mesa",
+      "abm_pollinator_diversity": "enriquecimiento_abm_mesa"
+    }
+  },
+  "bundle": {
+    "bundle_id": "bundle_ridge_078f18a6664f",
+    "export_dir": "/app/artifacts/revision_metodologica/campana_cientifica/bundle_ridge_campana/bundle_ridge_078f18a6664f",
+    "model_type": "ridge",
+    "model_file": "/app/artifacts/revision_metodologica/campana_cientifica/bundle_ridge_campana/bundle_ridge_078f18a6664f/model_ridge.pkl",
+    "metadata_file": "/app/artifacts/revision_metodologica/campana_cientifica/bundle_ridge_campana/bundle_ridge_078f18a6664f/bundle_metadata.json",
+    "file_hashes": {
+      "scalers.pkl": "89ac7076de7fa860ca27bd288b375d455b7f68374f2e4bd1da64000c2d5c4096",
+      "model_ridge.pkl": "38c15570ca5c494be664b3706556dcfa10160f799fb0b9aad57533901e4d93a1"
+    },
+    "exported_at_utc": "2026-10-29T15:46:36.708043+00:00",
+    "test_only": false
+  },
+  "files": [
+    "config_effective.json",
+    "environment.json",
+    "data_audit.json",
+    "dataset.csv",
+    "splits.json",
+    "tuning_results.csv",
+    "fold_metrics.csv",
+    "oof_predictions.csv",
+    "model_summary.csv"
+  ],
+  "bundle_exported_at_utc": "2026-10-29T15:46:36.711128+00:00"
+}

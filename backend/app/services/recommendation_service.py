@@ -1,31 +1,47 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
-import httpx
-from groq import Groq
+from typing import Any, Tuple
+try:
+    import httpx
+except ImportError:
+    httpx = None
 
-from app.config import get_settings
+try:
+    from groq import Groq
+except ImportError:
+    Groq = None
+
+try:
+    from app.config import get_settings
+except ImportError:
+    class MinimalSettings:
+        langflow_url = "http://langflow:7860"
+        langflow_flow_id = "asistente-recomendaciones-agroecologicas"
+        groq_api_key = ""
+        groq_model = "llama-3.3-70b-versatile"
+    def get_settings():
+        return MinimalSettings()
 
 logger = logging.getLogger("recommendation_service")
 
 
 PROMPT_AGROECOLOGICO_TEMPLATE = """
-Eres el Asistente Experto en Recomendaciones Agroecológicas del Gemelo Digital de Paisajes Agrícolas.
+Eres el Asistente en Análisis de Escenarios Agroecológicos del Gemelo Digital de Paisajes.
 
 Analiza la siguiente comparativa de optimización multiobjetivo (Frente de Pareto generado por NSGA-II):
 
 {resumen_comparativo}
 
 Tu tarea es explicar de forma concisa, técnica y fundamentada:
-1. MOTIVO DEL COMPROMISO (TRADE-OFF): Explica por qué la configuración recomendada es superior a los extremos del frente de Pareto (comparándola explícitamente con la alternativa de máximo rendimiento y la de máxima biodiversidad).
-2. VARIABLES CLAVE DE DECISIÓN: Indica cuáles variables tuvieron mayor impacto agronómico (reducción de pesticidas, porcentaje de franjas florales y área natural). Cita cifras reales numéricas exactas del resumen.
-3. RECOMENDACIÓN OPERATIVA EN CAMPO: Proporciona 1 o 2 acciones prácticas inmediatas para el agricultor en campo.
+1. MOTIVO DEL COMPROMISO (TRADE-OFF): Explica por qué la configuración seleccionada equilibra los índices simulados frente a los extremos del frente.
+2. VARIABLES DE CONFIGURACIÓN: Cita los valores modelados exactos del resumen (índice de plaguicidas, porcentaje de franjas florales y área natural).
+3. SUGERENCIAS DE MANEJO: 1 o 2 prácticas generales recomendadas, aclarando que son referenciales y no reemplazan la validación técnica en campo.
 
 REGLAS ESTRICTAS:
-- Cita cifras reales exactas del resumen provisto.
-- Redacta en español, tono profesional y directo (máximo 3 párrafos compactos).
-- No uses frases genéricas como 'es el mejor compromiso'; explica con fundamentos agronómicos y biológicos.
+- Usa 'índice predicho', 'índice de rendimiento' y 'configuración seleccionada'. No afirmes rentabilidad económica ni conservación observada de campo.
+- Cita cifras exactas del resumen provisto.
+- Máximo 3 párrafos compactos en español.
 """.strip()
 
 
@@ -43,10 +59,6 @@ def format_pareto_tradeoff_summary(
     best_solution: dict[str, Any],
     pareto_front: list[dict[str, Any]],
 ) -> tuple[str, dict[str, Any]]:
-    """
-    Construye la comparativa cuantitativa entre la línea base, la solución óptima
-    y los extremos del frente de Pareto.
-    """
     yb = _safe_float(baseline.get("crop_yield_index", baseline.get("rendimiento", 70.0)))
     pb = _safe_float(baseline.get("pollinator_abundance_index", baseline.get("polinizadores", 50.0)))
     pest_b = _safe_float(baseline.get("pesticide_level", 30.0))
@@ -63,13 +75,11 @@ def format_pareto_tradeoff_summary(
     delta_y = round(yo - yb, 2)
     delta_p_pct = round(((po - pb) / max(1.0, pb)) * 100.0, 1)
 
-    # Buscar extremos del frente de Pareto
     max_y_cand = max(pareto_front, key=lambda x: _safe_float(x.get("crop_yield_index", 0))) if pareto_front else best_solution
     max_p_cand = max(pareto_front, key=lambda x: _safe_float(x.get("pollinator_abundance_index", 0))) if pareto_front else best_solution
 
     max_y_val = round(_safe_float(max_y_cand.get("crop_yield_index", yo)), 2)
     max_y_poll = round(_safe_float(max_y_cand.get("pollinator_abundance_index", po)), 2)
-
     max_p_poll = round(_safe_float(max_p_cand.get("pollinator_abundance_index", po)), 2)
     max_p_yield = round(_safe_float(max_p_cand.get("crop_yield_index", yo)), 2)
 
@@ -99,54 +109,45 @@ def format_pareto_tradeoff_summary(
 
     text_summary = f"""
 COMPARATIVA DE OPTIMIZACIÓN MULTIOBJETIVO DEL PAISAJE:
-- LÍNEA BASE (ESTADO ACTUAL):
-  * Rendimiento Agrícola: {round(yb, 2)}
-  * Abundancia de Polinizadores: {round(pb, 2)}
-  * Uso de Pesticidas: {round(pest_b, 1)}%
+- LÍNEA BASE (ESTADO REFERENCIAL):
+  * Índice de Rendimiento: {round(yb, 2)}
+  * Índice de Abundancia de Polinizadores: {round(pb, 2)}
+  * Nivel de Plaguicidas: {round(pest_b, 1)}
   * Área Natural: {round(nat_b, 1)}%
 
-- CONFIGURACIÓN ÓPTIMA SELECCIONADA (RECOMENDACIÓN NSGA-II):
-  * Rendimiento Proyectado: {round(yo, 2)} (Delta: {delta_y:+} unidades)
-  * Abundancia de Polinizadores: {round(po, 2)} (Incremento: {delta_p_pct:+}%)
-  * Distribución del Paisaje: {round(crop_o, 1)}% cultivo comercial, {round(nat_o, 1)}% área natural protegida, {round(fl_o, 1)}% franjas florales
-  * Nivel de Pesticidas: reducido a {round(pest_o, 2)}%
-  * Índice de Manejo del Suelo: {round(soil_o, 1)} / 100
+- CONFIGURACIÓN SELECCIONADA POR CRITERIO MULTICRITERIO:
+  * Índice de Rendimiento Predicho: {round(yo, 2)} (Delta: {delta_y:+} unidades)
+  * Índice de Abundancia Predicho: {round(po, 2)} (Cambio: {delta_p_pct:+}%)
+  * Distribución del Paisaje: {round(crop_o, 1)}% cultivo, {round(nat_o, 1)}% natural, {round(fl_o, 1)}% franjas florales
+  * Nivel de Plaguicidas: {round(pest_o, 2)}
+  * Calificación de Manejo del Suelo: {round(soil_o, 1)}
 
-- EXTREMOS ALTERNATIVOS DEL FRENTE DE PARETO (NO ELEGIDOS):
-  * Alternativa Max Rendimiento: Alcanza rendimiento {max_y_val}, pero la abundancia de polinizadores se degrada a {max_y_poll}.
-  * Alternativa Max Conservación: Eleva polinizadores a {max_p_poll}, pero penaliza el rendimiento reduciéndolo a {max_p_yield}.
+- EXTREMOS DEL FRENTE DE PARETO:
+  * Máximo Rendimiento: {max_y_val} (abundancia de polinizadores: {max_y_poll})
+  * Máxima Abundancia: {max_p_poll} (rendimiento: {max_p_yield})
 """.strip()
 
     return text_summary, structured_summary
 
 
 def call_langflow_flow(payload: dict[str, Any]) -> str | None:
-    """
-    Invoca el flujo de Langflow expuesto en su API REST.
-    """
+    if httpx is None:
+        return None
     settings = get_settings()
     url = f"{settings.langflow_url.rstrip('/')}/api/v1/run/{settings.langflow_flow_id}"
 
     try:
-        with httpx.Client(timeout=4.5) as client:
+        with httpx.Client(timeout=3.0) as client:
             response = client.post(
                 url,
                 json={
                     "input_value": payload.get("comparativa_texto", ""),
                     "input_type": "chat",
                     "output_type": "chat",
-                    "tweaks": {
-                        "DatosOptimizacionInput": {
-                            "frente_pareto": payload.get("frente_pareto", []),
-                            "solucion_elegida": payload.get("solucion_elegida", {}),
-                            "linea_base": payload.get("linea_base", {}),
-                        }
-                    },
                 },
             )
             if response.status_code == 200:
                 data = response.json()
-                # Extraer texto del formato de respuesta estándar de Langflow
                 outputs = data.get("outputs", [])
                 if outputs:
                     for out in outputs:
@@ -155,19 +156,16 @@ def call_langflow_flow(payload: dict[str, Any]) -> str | None:
                             message = results.get("message", {})
                             text = message.get("text") or results.get("text")
                             if text and str(text).strip():
-                                return str(text).strip()
+                                return f"[Origen: Asistente Langflow]\n{str(text).strip()}"
     except Exception as exc:
-        logger.debug(f"Langflow no disponible o tiempo de espera agotado: {exc}")
+        logger.debug("Langflow no disponible: %s", exc)
 
     return None
 
 
 def call_groq_direct_fallback(comparativa_texto: str) -> str | None:
-    """
-    Ejecuta el prompt de Langflow directamente vía Groq si Langflow no está activo.
-    """
     settings = get_settings()
-    if not settings.groq_api_key:
+    if not settings.groq_api_key or Groq is None:
         return None
 
     try:
@@ -178,27 +176,24 @@ def call_groq_direct_fallback(comparativa_texto: str) -> str | None:
             model=settings.groq_model,
             temperature=0.25,
             messages=[
-                {
-                    "role": "system",
-                    "content": "Eres un agrónomo y ecólogo experto en modelado agroecológico y toma de decisiones multiobjetivo.",
-                },
+                {"role": "system", "content": "Eres un asistente de modelado agroecológico cuantitativo."},
                 {"role": "user", "content": prompt},
             ],
             max_tokens=650,
         )
         content = response.choices[0].message.content or ""
         if content.strip():
-            return content.strip()
+            return f"[Origen: Servicio LLM Groq]\n{content.strip()}"
     except Exception as exc:
-        logger.debug(f"Fallo en llamada directa a Groq: {exc}")
+        logger.debug("Fallo en llamada directa a Groq: %s", exc)
 
     return None
 
 
 def generate_deterministic_recommendation(summary: dict[str, Any]) -> str:
     """
-    Genera una explicación agroecológica dinámica y cuantitativa basada en los datos reales
-    cuando no hay conexión a Langflow ni a Groq.
+    Genera una explicación cuantitativa estructurada basada en los índices calculados,
+    claramente identificada como fallback heurístico local.
     """
     sol = summary["solucion_recomendada"]
     base = summary["linea_base"]
@@ -221,23 +216,23 @@ def generate_deterministic_recommendation(summary: dict[str, Any]) -> str:
     sign_y = f"+{delta_y}" if delta_y >= 0 else f"{delta_y}"
 
     p1 = (
-        f"Esta configuración fue seleccionada por el algoritmo NSGA-II porque representa el punto de equilibrio óptimo "
-        f"en el Frente de Pareto: incrementa la abundancia de polinizadores en un **+{delta_p}%** ({base_p} ➔ **{po}**) "
-        f"protegiendo simultáneamente la productividad agrícola ({base_y} ➔ **{yo}**, variación neta de **{sign_y}**). "
-        f"Frente a la alternativa puramente productivista ({max_y} de rendimiento pero apenas {max_y_p} de polinizadores) "
-        f"y la conservacionista extrema ({max_p} de polinizadores con caída a {max_p_y} de rendimiento), este escenario evita "
-        f"el colapso ecológico sin castigar la rentabilidad del lote."
+        f"[Origen: Análisis heurístico determinista]\n"
+        f"Esta configuración fue seleccionada mediante la regla operativa multi-criterio sobre el Frente de Pareto verificado: "
+        f"proyecta una variación del índice de abundancia de polinizadores de **+{delta_p}%** ({base_p} ➔ **{po}**) "
+        f"manteniendo el índice de rendimiento agrícola ({base_y} ➔ **{yo}**, variación neta de **{sign_y}**). "
+        f"Frente a la alternativa de máximo rendimiento del frente ({max_y} de rendimiento, {max_y_p} de polinizadores) "
+        f"y la de máxima conservación ({max_p} de polinizadores, {max_p_y} de rendimiento), este escenario equilibra ambos objetivos modelados."
     )
 
     p2 = (
-        f"Los factores determinantes de esta solución fueron la drástica reducción del uso de pesticidas a **{pest}%** "
-        f"y la integración estratégica de **{franjas}% de franjas florales** junto a un **{nat}% de área natural**. "
-        f"La diversificación del paisaje mitiga la deriva química y genera corredores biológicos continuos para el forrajeo de abejas nativas."
+        f"La configuración se compone de un nivel de plaguicidas de **{pest}**, "
+        f"con **{franjas}% de franjas florales** y **{nat}% de área natural**. "
+        f"Estas proporciones corresponden a composiciones estimadas del paisaje para mitigar la presión química."
     )
 
     p3 = (
-        f"**Recomendación en campo:** Establecer setos vivos y bordes florales en los perímetros del lote con especies melíferas locales, "
-        f"y programar aplicaciones de bioplaguicidas únicamente fuera de los horarios de pecoreo para consolidar la meta de {po} de abundancia."
+        f"*Nota metodológica:* Las sugerencias agronómicas derivadas del modelo representan pautas orientativas "
+        f"y no constituyen prescripciones validadas en campo. Requieren contrastación agronómica y ecológica local."
     )
 
     return f"{p1}\n\n{p2}\n\n{p3}"
@@ -245,17 +240,14 @@ def generate_deterministic_recommendation(summary: dict[str, Any]) -> str:
 
 def generate_ai_recommendation(
     baseline: dict[str, Any],
-    best_solution: dict[str, Any],
+    best_solution: Optional[dict[str, Any]],
     pareto_front: list[dict[str, Any]],
 ) -> str:
     """
-    Punto de entrada principal para generar la recomendación agroecológica inteligente.
-    Intenta:
-    1. Langflow REST API (flujo visual de agentes)
-    2. Fallback directo a Groq con el mismo prompt del flujo
-    3. Fallback heurístico dinámico basado en las cifras reales de la optimización
-    4. Fallback original como red de seguridad absoluta
+    Genera la recomendación narrativa sin mutar las métricas numéricas del baseline ni del resultado.
     """
+    if not best_solution:
+        return "Sin recomendación: no se encontraron soluciones admisibles en el espacio de búsqueda."
     try:
         comparativa_texto, structured_summary = format_pareto_tradeoff_summary(
             baseline=baseline,
@@ -271,20 +263,20 @@ def generate_ai_recommendation(
             "linea_base": baseline,
         }
 
-        # 1. Intento con Langflow
         langflow_result = call_langflow_flow(payload)
         if langflow_result:
             return langflow_result
 
-        # 2. Intento directo con Groq (mismo prompt del flujo)
         groq_result = call_groq_direct_fallback(comparativa_texto)
         if groq_result:
             return groq_result
 
-        # 3. Fallback analítico cuantitativo con datos reales
         return generate_deterministic_recommendation(structured_summary)
 
     except Exception as exc:
-        logger.error(f"Error inesperado generando recomendación agroecológica: {exc}")
-        # Red de seguridad: mantener el texto previo para no romper nada
-        return "Mejor compromiso entre proteger el rendimiento y maximizar la ganancia de polinizadores."
+        logger.error("Error generando recomendación: %s", exc)
+        return (
+            "[Origen: Fallback básico]\n"
+            "Configuración seleccionada por regla operativa multi-criterio. "
+            "Sujeta a revisión agronómica especializada."
+        )

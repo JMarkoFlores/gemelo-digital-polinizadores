@@ -206,13 +206,32 @@ async def simular(
     except RuntimeError as exc:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
 
+    # Manejo explícito de ausencia de solución (Auditoría 04, Bloque 2)
+    is_infeasible = (result.get("status") == "infeasible" or result.get("best_solution") is None)
+    if is_infeasible:
+        result["best_solution"] = None
+        result["optimized_landscape"] = None
+        result["recomendacion_ia"] = "No se generó recomendación agronómica debido a la ausencia de soluciones admisibles en el dominio explorado."
+        simulation = Simulacion(
+            usuario_id=current_user.id,
+            coordenadas_geojson=result["baseline"]["geometry"],
+            variables_entrada=payload.model_dump(),
+            metricas_base=result["baseline"],
+            metricas_optimas=None,
+            frente_pareto=[],
+        )
+        db.add(simulation)
+        db.commit()
+        return result
+
     # Enriquecer motivo de selección con el Asistente de Recomendaciones Agroecológicas (Langflow/IA)
     recomendacion = generate_ai_recommendation(
         baseline=result["baseline"],
         best_solution=result["best_solution"],
         pareto_front=result["pareto_front"],
     )
-    result["best_solution"]["selection_reason"] = recomendacion
+    if result.get("best_solution") is not None:
+        result["best_solution"]["selection_reason"] = recomendacion
     result["recomendacion_ia"] = recomendacion
 
     simulation = Simulacion(

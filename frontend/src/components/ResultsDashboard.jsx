@@ -66,34 +66,70 @@ export default function ResultsDashboard({ result, elevationData = null }) {
     )
   }
 
-  const isHypothesisConfirmed =
-    result.hypothesis_status?.toLowerCase?.().includes('confirm') ||
-    result.hypothesis_status?.toLowerCase?.().includes('validad')
+  const isInfeasible = result.status === 'infeasible' || !result.best_solution
 
-  const deltaYieldSign = result.delta_yield >= 0 ? '+' : ''
-  const deltaPollinatorsSign = result.delta_pollinators >= 0 ? '+' : ''
-  const deltaPollinatorsVal = Number(result.delta_pollinators ?? 0)
+  const deltaYieldVal = result.delta_yield !== null && result.delta_yield !== undefined ? Number(result.delta_yield) : null
+  const deltaPollinatorsVal = result.delta_pollinators !== null && result.delta_pollinators !== undefined ? Number(result.delta_pollinators) : null
 
-  // Dynamic interpretation for Hypothesis (threshold >= 20%)
-  const hypothesisThreshold = 20.0
-  const isHypothesisThresholdMet = deltaPollinatorsVal >= hypothesisThreshold
-  const hypothesisExplanation = isHypothesisThresholdMet
-    ? `La hipótesis planteaba un aumento de al menos 20% en abundancia de polinizadores. El resultado obtenido (+${deltaPollinatorsVal.toFixed(1)}%) confirma la hipótesis.`
-    : `La hipótesis planteaba un aumento de al menos 20% en abundancia de polinizadores. El resultado obtenido (${deltaPollinatorsSign}${deltaPollinatorsVal.toFixed(1)}%) no cumplió la hipótesis (faltó un ${(hypothesisThreshold - deltaPollinatorsVal).toFixed(1)}% para alcanzar el umbral).`
+  const deltaYieldSign = (deltaYieldVal !== null && deltaYieldVal >= 0) ? '+' : ''
+  const deltaPollinatorsSign = (deltaPollinatorsVal !== null && deltaPollinatorsVal >= 0) ? '+' : ''
+
+  // Criterio operativo conjunto: delta_yield >= 0 AND delta_pollinators >= 20%
+  // Preferentemente consume el indicador estructurado 'meets_joint_criteria' del backend
+  const meetsJointCriteria = isInfeasible
+    ? false
+    : (result.meets_joint_criteria !== undefined && result.meets_joint_criteria !== null
+        ? Boolean(result.meets_joint_criteria)
+        : (deltaYieldVal !== null && deltaYieldVal >= 0 && deltaPollinatorsVal !== null && deltaPollinatorsVal >= 20.0))
+
+  let hypothesisStatusText = ''
+  let hypothesisExplanation = ''
+
+  if (isInfeasible) {
+    hypothesisStatusText = result.hypothesis_status || 'No evaluable: sin soluciones admisibles dentro del dominio'
+    hypothesisExplanation = 'No fue posible evaluar el criterio operativo porque ninguna configuración de paisaje explorada cumplió simultáneamente las restricciones biofísicas y el dominio empírico del modelo subrogado.'
+  } else if (meetsJointCriteria) {
+    hypothesisStatusText = result.hypothesis_status || 'Criterio operativo de mejora conjunta cumplido (+20% abundancia simulada con rendimiento no degradado)'
+    hypothesisExplanation = `El resultado optimizado cumple el criterio operativo de mejora conjunta al proyectar un aumento de polinizadores (+${deltaPollinatorsVal.toFixed(1)}% ≥ 20%) manteniendo el rendimiento agrícola sin degradación (${deltaYieldSign}${deltaYieldVal.toFixed(3)} ≥ 0).`
+  } else {
+    hypothesisStatusText = result.hypothesis_status || 'Criterio operativo de mejora conjunta no alcanzado'
+    const reasons = []
+    if (deltaYieldVal !== null && deltaYieldVal < 0) {
+      reasons.push(`el rendimiento agrícola se degrada (${deltaYieldVal.toFixed(3)} < 0)`)
+    }
+    if (deltaPollinatorsVal !== null && deltaPollinatorsVal < 20.0) {
+      reasons.push(`el incremento de polinizadores (${deltaPollinatorsVal.toFixed(1)}%) no alcanza el umbral mínimo del 20%`)
+    }
+    hypothesisExplanation = `El resultado optimizado no cumple el criterio operativo de mejora conjunta: ${reasons.join(' y ')}.`
+  }
 
   const baselineMix = result.baseline
   const optimalMix = result.optimized_landscape?.land_use_mix || result.best_solution
 
   return (
     <div id="results-dashboard" className="space-y-6">
+      {isInfeasible && (
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-amber-800 dark:text-amber-200">
+          <div className="flex items-center gap-2 font-bold text-sm sm:text-base">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-amber-600 dark:text-amber-400">
+              <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+            <span>Optimización sin soluciones admisibles dentro del dominio</span>
+          </div>
+          <p className="mt-1 text-xs sm:text-sm text-slate-600 dark:text-slate-300">
+            {result.message || 'No se encontraron configuraciones que cumplan conjuntamente las restricciones biofísicas de cobertura y el dominio empírico del modelo subrogado.'}
+          </p>
+        </div>
+      )}
+
       {/* Metric Cards Top Row */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <MetricCard
           id="metric-delta-yield"
           label={t('results_deltaYield')}
-          value={`${deltaYieldSign}${result.delta_yield.toFixed(3)}`}
+          value={deltaYieldVal !== null ? `${deltaYieldSign}${deltaYieldVal.toFixed(3)}` : 'N/A'}
           hint={t('results_deltaYield_hint')}
-          tone="emerald"
+          tone={deltaYieldVal !== null && deltaYieldVal >= 0 ? "emerald" : "default"}
           icon={
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-emerald-500">
               <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/>
@@ -103,9 +139,9 @@ export default function ResultsDashboard({ result, elevationData = null }) {
         <MetricCard
           id="metric-delta-pollinators"
           label={t('results_deltaPollinators')}
-          value={`${deltaPollinatorsSign}${deltaPollinatorsVal.toFixed(1)}%`}
+          value={deltaPollinatorsVal !== null ? `${deltaPollinatorsSign}${deltaPollinatorsVal.toFixed(1)}%` : 'N/A'}
           hint={t('results_deltaPollinators_hint')}
-          tone="emerald"
+          tone={deltaPollinatorsVal !== null && deltaPollinatorsVal >= 20.0 ? "emerald" : "default"}
           icon={
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-amber-500">
               <path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
@@ -118,12 +154,20 @@ export default function ResultsDashboard({ result, elevationData = null }) {
           value={
             <div>
               <span className={`inline-flex items-center gap-1.5 text-base sm:text-lg font-bold px-3 py-1 rounded-full ${
-                isHypothesisConfirmed
+                meetsJointCriteria
                   ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
-                  : 'bg-amber-500/10 text-amber-700 dark:text-amber-300'
+                  : isInfeasible
+                    ? 'bg-slate-500/10 text-slate-700 dark:text-slate-300'
+                    : 'bg-amber-500/10 text-amber-700 dark:text-amber-300'
               }`}>
-                <span className={`h-2 w-2 rounded-full ${isHypothesisConfirmed ? 'bg-emerald-500' : 'bg-amber-500'}`} />
-                {result.hypothesis_status}
+                <span className={`h-2 w-2 rounded-full ${
+                  meetsJointCriteria
+                    ? 'bg-emerald-500'
+                    : isInfeasible
+                      ? 'bg-slate-400'
+                      : 'bg-amber-500'
+                }`} />
+                {hypothesisStatusText}
               </span>
               <p className="mt-2 text-xs font-normal text-slate-600 dark:text-slate-300 leading-relaxed border-t border-slate-100 dark:border-slate-800/80 pt-2">
                 {hypothesisExplanation}
@@ -297,7 +341,7 @@ export default function ResultsDashboard({ result, elevationData = null }) {
                   />
                   <Scatter
                     name="Solución Óptima Elegida"
-                    data={[result.best_solution]}
+                    data={result.best_solution ? [result.best_solution] : []}
                     fill="#10b981"
                     shape="star"
                   />
@@ -309,9 +353,13 @@ export default function ResultsDashboard({ result, elevationData = null }) {
           {/* Pareto summary footer bar */}
           <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-100 bg-slate-50/80 p-3 text-xs text-slate-600 dark:border-slate-800 dark:bg-slate-950/50 dark:text-slate-400">
             <div className="flex items-center gap-2">
-              <span className="inline-block h-2.5 w-2.5 rounded-full bg-emerald-500 shadow-xs" />
+              <span className={`inline-block h-2.5 w-2.5 rounded-full ${result.best_solution ? 'bg-emerald-500' : 'bg-slate-400'} shadow-xs`} />
               <span>
-                Óptimo seleccionado: <strong className="text-slate-900 dark:text-slate-100">{Number(result.best_solution?.crop_yield_index || 0).toFixed(2)}</strong> Rend. / <strong className="text-slate-900 dark:text-slate-100">{Number(result.best_solution?.pollinator_abundance_index || 0).toFixed(2)}</strong> Polin.
+                Óptimo seleccionado: {result.best_solution ? (
+                  <><strong className="text-slate-900 dark:text-slate-100">{Number(result.best_solution?.crop_yield_index || 0).toFixed(2)}</strong> Rend. / <strong className="text-slate-900 dark:text-slate-100">{Number(result.best_solution?.pollinator_abundance_index || 0).toFixed(2)}</strong> Polin.</>
+                ) : (
+                  <span className="italic text-slate-500 dark:text-slate-400">Sin solución admisible en el dominio</span>
+                )}
               </span>
             </div>
             <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
@@ -327,37 +375,43 @@ export default function ResultsDashboard({ result, elevationData = null }) {
           className="flex flex-col h-full justify-between"
         >
           <div className="space-y-2 text-xs sm:text-sm">
-            {Object.entries(result.best_solution)
-              .filter(([key]) => !['selection_reason', 'selectionReason', 'Selection_Reason', 'recomendacion_ia'].includes(key))
-              .map(([key, value]) => {
-                const labels = {
-                  crop_yield_index: 'Rendimiento proyectado',
-                  pollinator_abundance_index: 'Abundancia polinizadores',
-                  crop_area_pct: '% Área de cultivo',
-                  natural_area_pct: '% Área natural',
-                  floral_strips_pct: '% Franjas florales',
-                  pesticide_level: 'Nivel pesticidas',
-                  soil_management_score: 'Índice manejo del suelo',
-                  landscape_diversity: 'Diversidad del paisaje',
-                  pollinator_diversity_index: 'Diversidad polinizadores',
-                }
-                const displayLabel = labels[key] || key.replace(/_/g, ' ')
-                let displayValue = typeof value === 'number' ? value.toFixed(3) : String(value)
+            {result.best_solution ? (
+              Object.entries(result.best_solution)
+                .filter(([key]) => !['selection_reason', 'selectionReason', 'Selection_Reason', 'recomendacion_ia'].includes(key))
+                .map(([key, value]) => {
+                  const labels = {
+                    crop_yield_index: 'Rendimiento proyectado',
+                    pollinator_abundance_index: 'Abundancia polinizadores',
+                    crop_area_pct: '% Área de cultivo',
+                    natural_area_pct: '% Área natural',
+                    floral_strips_pct: '% Franjas florales',
+                    pesticide_level: 'Nivel pesticidas',
+                    soil_management_score: 'Índice manejo del suelo',
+                    landscape_diversity: 'Diversidad del paisaje',
+                    pollinator_diversity_index: 'Diversidad polinizadores',
+                  }
+                  const displayLabel = labels[key] || key.replace(/_/g, ' ')
+                  let displayValue = typeof value === 'number' ? value.toFixed(3) : String(value)
 
-                return (
-                  <div
-                    key={key}
-                    className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50/70 px-3.5 py-2.5 dark:border-slate-800 dark:bg-slate-950/50"
-                  >
-                    <span className="font-medium text-slate-600 dark:text-slate-300 capitalize">
-                      {displayLabel}
-                    </span>
-                    <span className="font-bold text-slate-900 dark:text-slate-100 font-display text-right">
-                      {displayValue}
-                    </span>
-                  </div>
-                )
-              })}
+                  return (
+                    <div
+                      key={key}
+                      className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50/70 px-3.5 py-2.5 dark:border-slate-800 dark:bg-slate-950/50"
+                    >
+                      <span className="font-medium text-slate-600 dark:text-slate-300 capitalize">
+                        {displayLabel}
+                      </span>
+                      <span className="font-bold text-slate-900 dark:text-slate-100 font-display text-right">
+                        {displayValue}
+                      </span>
+                    </div>
+                  )
+                })
+            ) : (
+              <div className="rounded-xl border border-dashed border-slate-200 p-6 text-center text-xs text-slate-500 dark:border-slate-800 dark:text-slate-400">
+                No se encontró ninguna configuración que cumpla los criterios biofísicos y el dominio de entrenamiento del modelo sustituto.
+              </div>
+            )}
 
             {/* Tarjeta colapsable de Motivo de Selección / Recomendación IA */}
             {(() => {
@@ -365,7 +419,8 @@ export default function ResultsDashboard({ result, elevationData = null }) {
                 result.recomendacion_ia ||
                 result.best_solution?.selection_reason ||
                 result.best_solution?.selectionReason ||
-                'Mejor compromiso entre proteger el rendimiento y maximizar la ganancia de polinizadores.'
+                result.message ||
+                'Sin recomendación disponible: no se encontraron soluciones admisibles.'
 
               const isAiGenerated =
                 Boolean(result.recomendacion_ia) ||
@@ -393,18 +448,26 @@ export default function ResultsDashboard({ result, elevationData = null }) {
         <div className="h-72 w-full pt-2">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart
-              data={[
-                {
-                  stage: t('results_base'),
-                  yield: result.baseline.crop_yield_index,
-                  pollinators: result.baseline.pollinator_abundance_index,
-                },
-                {
-                  stage: t('results_optimal'),
-                  yield: result.best_solution.crop_yield_index,
-                  pollinators: result.best_solution.pollinator_abundance_index,
-                },
-              ]}
+              data={
+                result.best_solution ? [
+                  {
+                    stage: t('results_base'),
+                    yield: result.baseline?.crop_yield_index || 0,
+                    pollinators: result.baseline?.pollinator_abundance_index || 0,
+                  },
+                  {
+                    stage: t('results_optimal'),
+                    yield: result.best_solution?.crop_yield_index || 0,
+                    pollinators: result.best_solution?.pollinator_abundance_index || 0,
+                  },
+                ] : [
+                  {
+                    stage: t('results_base'),
+                    yield: result.baseline?.crop_yield_index || 0,
+                    pollinators: result.baseline?.pollinator_abundance_index || 0,
+                  },
+                ]
+              }
               margin={{ top: 20, right: 20, left: -10, bottom: 5 }}
             >
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" opacity={0.6} />
@@ -435,7 +498,11 @@ export default function ResultsDashboard({ result, elevationData = null }) {
         {/* Plain-Language Interpretation for Comparative Trajectory */}
         <div className="mt-4 rounded-xl border border-emerald-500/20 bg-emerald-500/[0.04] p-3.5 dark:bg-emerald-500/[0.08]">
           <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-200 leading-relaxed">
-            📈 <strong>Resumen de trayectoria:</strong> La configuración optimizada logra simultáneamente un mayor rendimiento de cultivo (+{result.delta_yield.toFixed(3)}) y una mayor abundancia de polinizadores (+{deltaPollinatorsVal.toFixed(1)}%) respecto al escenario base, sin sacrificar uno por el otro.
+            {result.best_solution ? (
+              <>📈 <strong>Resumen de trayectoria:</strong> La configuración optimizada proyecta {deltaYieldVal !== null && deltaYieldVal >= 0 ? `un rendimiento agrícola no degradado (${deltaYieldSign}${deltaYieldVal.toFixed(3)})` : `un rendimiento agrícola degradado (${deltaYieldSign}${deltaYieldVal ? deltaYieldVal.toFixed(3) : 0})`} y {deltaPollinatorsVal !== null && deltaPollinatorsVal >= 0 ? `una mayor abundancia de polinizadores (${deltaPollinatorsSign}${deltaPollinatorsVal.toFixed(1)}%)` : `una menor abundancia de polinizadores (${deltaPollinatorsSign}${deltaPollinatorsVal ? deltaPollinatorsVal.toFixed(1) : 0}%)`} respecto al escenario base.</>
+            ) : (
+              <>⚠️ <strong>Resumen de trayectoria:</strong> Sin configuración optimizada disponible dentro del dominio admisible.</>
+            )}
           </p>
         </div>
       </PanelCard>

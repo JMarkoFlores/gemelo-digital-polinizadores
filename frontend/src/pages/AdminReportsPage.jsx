@@ -21,6 +21,23 @@ import StatusBanner from '../components/StatusBanner'
 import EmptyState from '../components/EmptyState'
 import ReportExportBar from '../components/ReportExportBar'
 
+function formatUiMetric(val, decimals = 1, unit = 'pts') {
+  if (val === null || val === undefined) return 'N/D'
+  const formatted = Number(val).toFixed(decimals)
+  return unit ? `${formatted} ${unit}` : formatted
+}
+
+function formatUiDeltaHint(base, delta, deltaPct, decimals = 1, unit = 'pts') {
+  if (base === null || base === undefined) return 'Sin datos de línea base'
+  const baseStr = `Base: ${Number(base).toFixed(decimals)}`
+  if (delta === null || delta === undefined) {
+    return `${baseStr} (Sin solución evaluable)`
+  }
+  const sign = delta > 0 ? '+' : ''
+  const pctStr = deltaPct !== null && deltaPct !== undefined ? `, ${sign}${Number(deltaPct).toFixed(1)}%` : ''
+  return `${baseStr} (Δ ${sign}${Number(delta).toFixed(decimals)} ${unit}${pctStr})`
+}
+
 export default function AdminReportsPage() {
   const { t } = useTranslation()
   const [activeTab, setActiveTab] = useState('operational') // 'operational' | 'management'
@@ -392,6 +409,7 @@ export default function AdminReportsPage() {
                         color: '#f8fafc',
                         fontSize: '12px',
                       }}
+                      formatter={(value, name) => [value === null || value === undefined ? 'N/D' : value, name]}
                     />
                     <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
                     <Area
@@ -505,12 +523,31 @@ export default function AdminReportsPage() {
            TAB 2: REPORTE DE GESTIÓN (KPIs agroecológicos agregados)
            ========================================================= */
         <div className="space-y-6">
+          {/* Cohort Population Summary Bar */}
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-300">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-semibold text-slate-800 dark:text-slate-100">Desglose de Simulaciones:</span>
+              <span>Total registradas: <strong className="text-slate-900 dark:text-slate-100">{mgKpis.total_simulaciones ?? 0}</strong></span>
+              <span className="text-slate-400">|</span>
+              <span>Evaluables (con solución): <strong className="text-emerald-600 dark:text-emerald-400">{mgKpis.simulaciones_evaluables ?? 0}</strong></span>
+              <span className="text-slate-400">|</span>
+              <span>No evaluables: <strong className="text-amber-600 dark:text-amber-400">{mgKpis.simulaciones_no_evaluables ?? 0}</strong></span>
+              <span className="text-slate-400">|</span>
+              <span>Cumplen criterio: <strong className="text-emerald-600 dark:text-emerald-400">{mgKpis.simulaciones_cumplen_hipotesis ?? 0}</strong></span>
+              <span className="text-slate-400">|</span>
+              <span>No cumplen (evaluables): <strong className="text-slate-700 dark:text-slate-300">{mgKpis.simulaciones_no_cumplen ?? 0}</strong></span>
+            </div>
+            <div className="text-[11px] text-slate-500 dark:text-slate-400">
+              Denominador de tasas: <span className="font-medium text-slate-700 dark:text-slate-200">{mgKpis.denominador_tasa || 'evaluables'}</span>
+            </div>
+          </div>
+
           {/* Management KPI Cards */}
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <MetricCard
               label="Rendimiento Agrícola Promedio"
-              value={`${mgKpis.rendimiento_promedio_optimo?.toFixed(1) || 0} pts`}
-              hint={`Base: ${mgKpis.rendimiento_promedio_base?.toFixed(1) || 0} (Δ +${mgKpis.delta_rendimiento_promedio?.toFixed(1) || 0} pts, +${mgKpis.delta_rendimiento_pct?.toFixed(1) || 0}%)`}
+              value={formatUiMetric(mgKpis.rendimiento_promedio_optimo, 1, 'pts')}
+              hint={formatUiDeltaHint(mgKpis.rendimiento_promedio_base, mgKpis.delta_rendimiento_promedio, mgKpis.delta_rendimiento_pct, 1, 'pts')}
               tone="emerald"
               icon={
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-emerald-500">
@@ -521,8 +558,8 @@ export default function AdminReportsPage() {
 
             <MetricCard
               label="Abundancia de Polinizadores"
-              value={`${mgKpis.abundancia_polinizadores_optima?.toFixed(1) || 0} pts`}
-              hint={`Base: ${mgKpis.abundancia_polinizadores_base?.toFixed(1) || 0} (Δ +${mgKpis.delta_abundancia_promedio?.toFixed(1) || 0} pts, +${mgKpis.delta_abundancia_pct?.toFixed(1) || 0}%)`}
+              value={formatUiMetric(mgKpis.abundancia_polinizadores_optima, 1, 'pts')}
+              hint={formatUiDeltaHint(mgKpis.abundancia_polinizadores_base, mgKpis.delta_abundancia_promedio, mgKpis.delta_abundancia_pct, 1, 'pts')}
               tone="emerald"
               icon={
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-emerald-500">
@@ -533,8 +570,8 @@ export default function AdminReportsPage() {
 
             <MetricCard
               label="Diversidad de Polinizadores"
-              value={`${mgKpis.diversidad_polinizadores_optima?.toFixed(2) || 0} pts`}
-              hint={`Línea base: ${mgKpis.diversidad_polinizadores_base?.toFixed(2) || 0} (Δ +${mgKpis.delta_diversidad_promedio?.toFixed(2) || 0})`}
+              value={formatUiMetric(mgKpis.diversidad_polinizadores_optima, 2, 'pts')}
+              hint={formatUiDeltaHint(mgKpis.diversidad_polinizadores_base, mgKpis.delta_diversidad_promedio, null, 2, 'pts')}
               tone="blue"
               icon={
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-sky-500">
@@ -544,10 +581,10 @@ export default function AdminReportsPage() {
             />
 
             <MetricCard
-              label="Tasa Cumplimiento Hipótesis"
-              value={`${mgKpis.tasa_cumplimiento_hipotesis?.toFixed(1) || 0}%`}
-              hint={`+20% polinizadores con Δyield ≥ 0 (${mgKpis.simulaciones_cumplen_hipotesis || 0} de ${mgKpis.total_simulaciones || 0})`}
-              tone={mgKpis.tasa_cumplimiento_hipotesis >= 70 ? 'emerald' : 'neutral'}
+              label="Criterio Operativo de Mejora Conjunta"
+              value={mgKpis.tasa_cumplimiento_hipotesis !== null && mgKpis.tasa_cumplimiento_hipotesis !== undefined ? `${Number(mgKpis.tasa_cumplimiento_hipotesis).toFixed(1)}%` : 'N/D'}
+              hint={`+20% pol. con Δyield ≥ 0 (${mgKpis.simulaciones_cumplen_hipotesis ?? 0} de ${mgKpis.simulaciones_evaluables ?? 0} evaluables)`}
+              tone={mgKpis.tasa_cumplimiento_hipotesis !== null && mgKpis.tasa_cumplimiento_hipotesis !== undefined && mgKpis.tasa_cumplimiento_hipotesis >= 70 ? 'emerald' : 'neutral'}
               icon={
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-emerald-500">
                   <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" />
@@ -578,6 +615,7 @@ export default function AdminReportsPage() {
                         color: '#f8fafc',
                         fontSize: '12px',
                       }}
+                      formatter={(value, name) => [value === null || value === undefined ? 'N/D' : value, name]}
                     />
                     <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
                     <Line
@@ -619,7 +657,7 @@ export default function AdminReportsPage() {
           {/* Regional Comparison Grouped Bar Chart */}
           <PanelCard
             title="Comparativa Multiobjetivo por Región Agroecológica"
-            subtitle="Rendimiento agrícola, abundancia de polinizadores y tasa de comprobación de hipótesis por territorio."
+            subtitle="Rendimiento agrícola, abundancia de polinizadores y tasa de cumplimiento del criterio operativo por territorio."
           >
             {managementData?.comparacion_regiones?.length === 0 ? (
               <EmptyState title="Sin datos regionales" description="No hay simulaciones en el rango filtrado." />
@@ -638,11 +676,12 @@ export default function AdminReportsPage() {
                         color: '#f8fafc',
                         fontSize: '12px',
                       }}
+                      formatter={(value, name) => [value === null || value === undefined ? 'N/D' : value, name]}
                     />
                     <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
                     <Bar dataKey="rendimiento_promedio_optimo" name="Rendimiento Óptimo" fill="#10b981" radius={[4, 4, 0, 0]} />
                     <Bar dataKey="abundancia_promedio_optimo" name="Abundancia Polinizadores" fill="#f59e0b" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="tasa_cumplimiento_hipotesis" name="% Hipótesis Comprobada" fill="#0284c7" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="tasa_cumplimiento_hipotesis" name="% Criterio Operativo" fill="#0284c7" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>

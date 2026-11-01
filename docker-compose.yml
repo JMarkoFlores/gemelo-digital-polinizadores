@@ -1,13 +1,12 @@
 services:
   db:
     image: postgres:16-alpine
-    container_name: gemelos_db
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-gemelos_db}
       POSTGRES_USER: ${POSTGRES_USER:-gemelos_user}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-gemelos_password}
     ports:
-      - "5432:5432"
+      - "${DB_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -18,8 +17,8 @@ services:
 
   backend:
     build:
-      context: ./backend
-    container_name: gemelos_backend
+      context: .
+      dockerfile: ./backend/Dockerfile
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg2://gemelos_user:gemelos_password@db:5432/gemelos_db}
       JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
@@ -34,10 +33,12 @@ services:
       WATCHFILES_FORCE_POLLING: "true"
       LANGFLOW_URL: ${LANGFLOW_URL:-http://langflow:7860}
       LANGFLOW_FLOW_ID: ${LANGFLOW_FLOW_ID:-asistente-recomendaciones-agroecologicas}
+      PYTHONPATH: /app
     ports:
       - "${BACKEND_PORT:-8000}:8000"
     volumes:
       - ./backend:/app
+      - ./scientific_core:/app/scientific_core
       - modelos_ia_volume:/modelos_ia/
     depends_on:
       db:
@@ -47,7 +48,6 @@ services:
   frontend:
     build:
       context: ./frontend
-    container_name: gemelos_frontend
     environment:
       VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000}
     ports:
@@ -61,18 +61,38 @@ services:
 
   streamlit:
     build:
-      context: ./streamlit_app
-    container_name: gemelos_streamlit
+      context: .
+      dockerfile: ./streamlit_app/Dockerfile
     ports:
       - "${STREAMLIT_PORT:-8501}:8501"
+    environment:
+      PYTHONPATH: /app:/app/streamlit_app
     volumes:
-      - ./streamlit_app:/app
+      - ./streamlit_app:/app/streamlit_app
+      - ./scientific_core:/app/scientific_core
+      - ./configs:/app/configs
+      - ./cli.py:/app/cli.py
+      - ./artifacts:/app/artifacts
       - modelos_ia_volume:/modelos_ia/
+    working_dir: /app/streamlit_app
     command: streamlit run app.py --server.address=0.0.0.0 --server.port=8501
+
+  scientific:
+    build:
+      context: .
+      dockerfile: ./Dockerfile.scientific
+    environment:
+      PYTHONPATH: /app:/app/backend:/app/streamlit_app
+    volumes:
+      - .:/app
+      - modelos_ia_volume:/modelos_ia/
+    working_dir: /app
+    command: python cli.py --help
 
   langflow:
     image: langflowai/langflow:latest
-    container_name: gemelos_langflow
+    profiles:
+      - langflow
     ports:
       - "${LANGFLOW_PORT:-7860}:7860"
     environment:

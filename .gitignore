@@ -16,3 +16,21 @@ build/
 coverage/
 .coverage
 modelos_ia/
+
+# Entorno funcional local
+.env.validacion
+.env.revision
+
+# Artefactos y evidencias voluminosas locales (excluidos de Git)
+artifacts/revision_metodologica/validacion_funcional/
+artifacts/revision_metodologica/*.zip
+artifacts/revision_metodologica/smoke_*/
+artifacts/revision_metodologica/streamlit_scientific_*/
+artifacts/revision_metodologica/campana_cientifica/scratch/smoke_*/
+
+# Reparse points LXFS en la raíz del bundle (archivos canónicos reales preservados en bundle_ridge_078f18a6664f/)
+artifacts/revision_metodologica/campana_cientifica/bundle_ridge_campana/bundle_metadata.json
+artifacts/revision_metodologica/campana_cientifica/bundle_ridge_campana/modelo_optimizado_metadata.json
+artifacts/revision_metodologica/campana_cientifica/bundle_ridge_campana/model_ridge.pkl
+artifacts/revision_metodologica/campana_cientifica/bundle_ridge_campana/scalers.pkl
+artifacts/revision_metodologica/campana_cientifica/bundle_ridge_campana/SHA256SUMS.txt

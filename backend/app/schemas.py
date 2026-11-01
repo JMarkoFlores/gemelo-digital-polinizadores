@@ -58,7 +58,7 @@ class SimulationResponse(BaseModel):
     coordenadas_geojson: dict[str, Any]
     variables_entrada: dict[str, Any]
     metricas_base: dict[str, Any]
-    metricas_optimas: dict[str, Any]
+    metricas_optimas: dict[str, Any] | None = None
     frente_pareto: list[dict[str, Any]]
     fecha: datetime
 
@@ -93,14 +93,22 @@ class SimulationCandidate(BaseModel):
 
 
 class SimulationResultPayload(BaseModel):
+    status: str = "success"
+    message: str | None = None
     baseline: dict[str, Any]
-    pareto_front: list[SimulationCandidate]
-    best_solution: dict[str, Any]
-    optimized_landscape: dict[str, Any]
-    delta_yield: float
-    delta_pollinators: float
-    hypothesis_status: str
+    pareto_front: list[SimulationCandidate] = Field(default_factory=list)
+    best_solution: dict[str, Any] | None = None
+    optimized_landscape: dict[str, Any] | None = None
+    delta_yield: float | None = None
+    delta_pollinators: float | None = None
+    hypothesis_status: str | None = None
+    meets_joint_criteria: bool | None = None
+    algorithm_evaluations_total: int | None = None
+    pareto_solutions_returned: int | None = None
+    pareto_candidates_evaluated: int | None = None
+    pareto_verified_count: int | None = None
     model_version: str | None = None
+    bundle_id: str | None = None
     cache_hit: bool = False
     recomendacion_ia: str | None = None
 

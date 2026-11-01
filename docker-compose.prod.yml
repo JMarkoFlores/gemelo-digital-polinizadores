@@ -18,7 +18,8 @@ services:
 
   backend:
     build:
-      context: ./backend
+      context: .
+      dockerfile: ./backend/Dockerfile
     restart: unless-stopped
     environment:
       DATABASE_URL: ${DATABASE_URL:?}
@@ -52,7 +53,8 @@ services:
 
   streamlit:
     build:
-      context: ./streamlit_app
+      context: .
+      dockerfile: ./streamlit_app/Dockerfile
     restart: unless-stopped
     volumes:
       - modelos_ia_volume:/modelos_ia/

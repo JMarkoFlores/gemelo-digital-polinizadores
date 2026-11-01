@@ -39,21 +39,41 @@ def _clip(values: np.ndarray, lower: float, upper: float) -> np.ndarray:
     return np.clip(values, lower, upper)
 
 
+def calculate_landscape_diversity(
+    natural_area_pct: float,
+    floral_strips_pct: float,
+    soil_management_score: float,
+) -> float:
+    """Función biofísica unificada para landscape_diversity."""
+    diversity = 0.25 + (natural_area_pct / 100.0) + (floral_strips_pct / 90.0) + (soil_management_score / 250.0)
+    return float(min(0.96, max(0.10, diversity)))
+
+
 def generate_synthetic_dataset(
     n_samples: int = 300,
     random_state: int = 42,
     enrich_with_abm: bool = False,
+    abm_policy: str = "corrected_full",
+    max_abm_simulations: int | None = None,
 ) -> pd.DataFrame:
     rng = np.random.default_rng(random_state)
 
-    crop_area = rng.uniform(35, 82, size=n_samples)
-    natural_area = rng.uniform(8, 42, size=n_samples)
-    floral_strips = rng.uniform(2, 18, size=n_samples)
+    # Coberturas con garantía física: natural + floral + crop <= 100%
+    natural_area = rng.uniform(8.0, 35.0, size=n_samples)
+    floral_strips = rng.uniform(2.0, 15.0, size=n_samples)
+    remaining_space = np.maximum(10.0, 100.0 - natural_area - floral_strips)
+    crop_fraction = rng.uniform(0.50, 0.95, size=n_samples)
+    crop_area = remaining_space * crop_fraction
+
     pesticide = rng.uniform(5, 95, size=n_samples)
     soil_management = rng.uniform(35, 95, size=n_samples)
     temperature = rng.normal(23.5, 2.8, size=n_samples)
-    precipitation = rng.normal(1050, 180, size=n_samples)
-    landscape_diversity = rng.uniform(0.2, 0.95, size=n_samples)
+    precipitation = np.maximum(200.0, rng.normal(1050, 180, size=n_samples))
+
+    landscape_diversity = np.array([
+        calculate_landscape_diversity(n, f, s)
+        for n, f, s in zip(natural_area, floral_strips, soil_management)
+    ])
 
     heat_stress = _clip(np.abs(temperature - 24.0) * 4.2, 0, 30)
     water_stress = _clip(np.abs(precipitation - 1025) / 16.0, 0, 28)
@@ -113,7 +133,12 @@ def generate_synthetic_dataset(
     if enrich_with_abm:
         from pollinator_abm import enrich_dataset_with_abm
 
-        data = enrich_dataset_with_abm(data, random_state=random_state)
+        data = enrich_dataset_with_abm(
+            data,
+            random_state=random_state,
+            policy=abm_policy,
+            max_simulations=max_abm_simulations,
+        )
 
     return data
 
@@ -156,15 +181,9 @@ def summarize_dataset(dataframe: pd.DataFrame) -> dict[str, Any]:
 
 
 def fetch_gbif_pollinator_records(config: RealDataConfig, limit: int = 200) -> dict[str, Any]:
-    """
-    Consulta la API pública y abierta de GBIF (Global Biodiversity Information Facility)
-    para obtener registros reales de presencia y diversidad de polinizadores (Hymenoptera / Apidae).
-    Usa requests directamente para no exigir dependencias binarias pesadas.
-    """
     import math
     import requests
 
-    # Cálculo del Bounding Box geográfico a partir del radio en km
     lat_delta = config.radius_km / 111.0
     cos_lat = math.cos(math.radians(config.latitude))
     lon_delta = config.radius_km / (111.0 * max(0.1, abs(cos_lat)))
@@ -172,7 +191,6 @@ def fetch_gbif_pollinator_records(config: RealDataConfig, limit: int = 200) -> d
     min_lon, max_lon = round(config.longitude - lon_delta, 4), round(config.longitude + lon_delta, 4)
 
     gbif_url = "https://api.gbif.org/v1/occurrence/search"
-    # Familia 4334 = Apidae (abejas polinizadoras primarias) u Orden 1457 = Hymenoptera
     params = {
         "familyKey": 4334,
         "decimalLatitude": f"{min_lat},{max_lat}",
@@ -187,7 +205,6 @@ def fetch_gbif_pollinator_records(config: RealDataConfig, limit: int = 200) -> d
         total_count = data.get("count", 0)
         results = data.get("results", [])
 
-        # Si Apidae no tiene registros en la zona, consultar orden general Hymenoptera
         if total_count == 0:
             params.pop("familyKey", None)
             params["orderKey"] = 1457
@@ -225,11 +242,6 @@ def fetch_nasa_power_climate(
     start_year: int = 2019,
     end_year: int = 2023,
 ) -> dict[str, Any]:
-    """
-    Consulta la API pública y gratuita de NASA POWER (Prediction of Worldwide Energy Resources).
-    No requiere API Key ni credenciales.
-    Obtiene series de temperatura a 2m (T2M) y precipitación diaria (PRECTOTCORR) para agroclimatología.
-    """
     import requests
 
     nasa_url = "https://power.larc.nasa.gov/api/temporal/monthly/point"
@@ -252,7 +264,6 @@ def fetch_nasa_power_climate(
         t2m_dict = params_data.get("T2M", {})
         prec_dict = params_data.get("PRECTOTCORR", {})
 
-        # Filtrar valores no válidos de NASA (-999)
         t2m_vals = [float(v) for v in t2m_dict.values() if v != -999 and v is not None]
         prec_vals = [float(v) for v in prec_dict.values() if v != -999 and v is not None]
 
@@ -261,7 +272,6 @@ def fetch_nasa_power_climate(
 
         mean_temp = float(np.mean(t2m_vals))
         std_temp = float(np.std(t2m_vals)) if len(t2m_vals) > 1 else 1.8
-        # PRECTOTCORR viene en mm/día; anualizamos sumando o multiplicando por 365.25
         mean_annual_precip = float(np.mean(prec_vals) * 365.25)
         std_precip = float(np.std(prec_vals) * 365.25 * 0.22) if len(prec_vals) > 1 else 140.0
 
@@ -282,7 +292,7 @@ def fetch_nasa_power_climate(
             "precipitation_annual_mean": 1050.0,
             "precipitation_std": 180.0,
             "months_analyzed": 0,
-            "source": "Fallback estándar",
+            "source": "Fallback estándar (sin conexión API)",
         }
 
 
@@ -296,15 +306,9 @@ def build_real_public_dataset(
     n_samples: int = 320,
     random_state: int = 42,
     enrich_with_abm: bool = False,
+    abm_policy: str = "corrected_full",
+    max_abm_simulations: int | None = None,
 ) -> tuple[pd.DataFrame, dict[str, Any]]:
-    """
-    Metodología CRISP-DM: Fases 2 (Data Understanding) y 3 (Data Preparation).
-    Construye un dataset integrando fuentes públicas reales abiertas:
-      1. Climatología real de NASA POWER (temperatura_c y precipitation_mm).
-      2. Biodiversidad real de GBIF (anclaje empírico de abundancia y diversidad observada).
-      3. Variables de paisaje y manejo agrícola calibradas regionalmente.
-    Garantiza el contrato exacto de 8 variables de entrada y 3 de salida para los modelos.
-    """
     rng = np.random.default_rng(random_state)
     config = RealDataConfig(
         latitude=latitude,
@@ -314,37 +318,38 @@ def build_real_public_dataset(
         radius_km=radius_km,
     )
 
-    # 1. Consulta pública real a NASA POWER (Clima)
     climate_info = fetch_nasa_power_climate(latitude, longitude, start_year, end_year)
     temp_mean = climate_info["temperature_mean"]
     temp_std = climate_info["temperature_std"]
     precip_mean = climate_info["precipitation_annual_mean"]
     precip_std = climate_info["precipitation_std"]
 
-    # 2. Consulta pública real a GBIF (Biodiversidad de polinizadores)
     gbif_info = fetch_gbif_pollinator_records(config, limit=200)
     total_occurrences = gbif_info["total_count"]
     species_count = gbif_info["distinct_species_count"]
 
-    # Generación de variables climáticas a partir de la distribución real observada
     temperature = rng.normal(temp_mean, temp_std, size=n_samples)
-    precipitation = rng.normal(precip_mean, precip_std, size=n_samples)
+    precipitation = np.maximum(200.0, rng.normal(precip_mean, precip_std, size=n_samples))
 
-    # Variables de paisaje y prácticas agrícolas (calibradas para el contexto agroecológico)
-    crop_area = rng.uniform(35, 82, size=n_samples)
-    natural_area = rng.uniform(8, 42, size=n_samples)
-    floral_strips = rng.uniform(2, 18, size=n_samples)
+    # Coberturas con garantía física de suma <= 100%
+    natural_area = rng.uniform(8.0, 35.0, size=n_samples)
+    floral_strips = rng.uniform(2.0, 15.0, size=n_samples)
+    remaining_space = np.maximum(10.0, 100.0 - natural_area - floral_strips)
+    crop_fraction = rng.uniform(0.50, 0.95, size=n_samples)
+    crop_area = remaining_space * crop_fraction
+
     pesticide = rng.uniform(5, 95, size=n_samples)
     soil_management = rng.uniform(35, 95, size=n_samples)
-    landscape_diversity = rng.uniform(0.2, 0.95, size=n_samples)
 
-    # Estrés térmico e hídrico basado en el clima real de la región
+    landscape_diversity = np.array([
+        calculate_landscape_diversity(n, f, s)
+        for n, f, s in zip(natural_area, floral_strips, soil_management)
+    ])
+
     heat_stress = _clip(np.abs(temperature - temp_mean) * 3.8, 0, 30)
     optimal_precip = max(400.0, precip_mean)
     water_stress = _clip(np.abs(precipitation - optimal_precip) / 18.0, 0, 28)
 
-    # Calibración del anclaje empírico de GBIF
-    # Si la zona tiene ocurrencias registradas, la abundancia base se ancla al registro real
     if total_occurrences > 0:
         base_gbif_abundance = float(np.clip(25.0 + np.log1p(total_occurrences) * 6.5, 20.0, 65.0))
         base_gbif_diversity = float(np.clip(10.0 + species_count * 1.5, 8.0, 38.0))
@@ -407,7 +412,12 @@ def build_real_public_dataset(
     if enrich_with_abm:
         from pollinator_abm import enrich_dataset_with_abm
 
-        dataframe = enrich_dataset_with_abm(dataframe, random_state=random_state)
+        dataframe = enrich_dataset_with_abm(
+            dataframe,
+            random_state=random_state,
+            policy=abm_policy,
+            max_simulations=max_abm_simulations,
+        )
 
     metadata = {
         "crisp_dm_phase": "CRISP-DM: Fase 2 (Data Understanding) y Fase 3 (Data Preparation)",
@@ -423,18 +433,19 @@ def build_real_public_dataset(
             "status": gbif_info["status"],
         },
         "column_provenance": {
-            "temperature_c": "🟢 Real Pública (NASA POWER API - T2M mensual)",
-            "precipitation_mm": "🟢 Real Pública (NASA POWER API - PRECTOTCORR)",
-            "pollinator_abundance_index": "🟢 Real Pública (Anclada empíricamente a GBIF Apoidea/Hymenoptera)",
-            "pollinator_diversity_index": "🟢 Real Pública (Anclada a riqueza de especies observadas en GBIF)",
-            "crop_area_pct": "🔵 Estimada / Calibrada agroecológicamente",
+            "temperature_c": "🟢 Calibrada con parámetros NASA POWER API (distribución normal)",
+            "precipitation_mm": "🟢 Calibrada con parámetros NASA POWER API (distribución normal)",
+            "pollinator_abundance_index": "🟢 Constante base anclada empíricamente a GBIF Apoidea/Hymenoptera",
+            "pollinator_diversity_index": "🟢 Constante base anclada a riqueza de especies observadas en GBIF",
+            "crop_area_pct": "🔵 Estimada / Calibrada agroecológicamente (suma física <= 100%)",
             "natural_area_pct": "🔵 Estimada / Calibrada agroecológicamente",
             "floral_strips_pct": "🔵 Estimada / Calibrada agroecológicamente",
             "pesticide_level": "🔵 Estimada / Calibrada agroecológicamente",
             "soil_management_score": "🔵 Estimada / Calibrada agroecológicamente",
-            "landscape_diversity": "🔵 Estimada / Calibrada agroecológicamente",
-            "crop_yield_index": "🔵 Modelo biofísico alimentado con Clima y Polinización reales",
+            "landscape_diversity": "🔵 Característica biofísica derivada unificada",
+            "crop_yield_index": "🔵 Modelo biofísico alimentado con Clima y Polinización",
         },
+        "scientific_disclaimer": "Las filas representan muestras generadas a partir de distribuciones empíricas calibradas regionalmente, no observaciones de campo individuales independientes.",
     }
 
     return dataframe, metadata
@@ -484,3 +495,61 @@ def fetch_land_use_snapshot(config: RealDataConfig, output_path: str) -> str:
     geemap.ee_export_image(image.clip(region), filename=output_path, scale=10, region=region)
     return output_path
 
+
+def process_uploaded_csv_data(
+    file_bytes: bytes,
+    filename: str,
+    session_state: Any,
+) -> tuple[bool, str]:
+    """
+    Procesa un archivo CSV basándose estrictamente en la identidad de su contenido (hash SHA-256).
+    Si el contenido no ha cambiado respecto al dataset activo en memoria, preserva
+    intactos dataset, training_result y export_result.
+    Si el contenido cambia o es inválido, invalida inmediatamente los resultados anteriores.
+    """
+    import hashlib
+    import io
+
+    if not file_bytes:
+        return False, "El archivo proporcionado está vacío."
+
+    content_hash = hashlib.sha256(file_bytes).hexdigest()
+    csv_identity = f"csv_propio:{content_hash}"
+    active_identity = session_state.get("active_dataset_identity")
+
+    # Si es exactamente la misma identidad de contenido y fuente, no invalidar ni re-parsear
+    if active_identity == csv_identity and session_state.get("dataset") is not None:
+        return True, "unchanged"
+
+    try:
+        dataframe = pd.read_csv(io.BytesIO(file_bytes))
+    except Exception as e:
+        session_state["active_dataset_identity"] = None
+        session_state["dataset"] = None
+        session_state["training_result"] = None
+        session_state["export_result"] = None
+        return False, f"Error al parsear CSV: {e}"
+
+    missing = [c for c in FEATURE_COLUMNS + TARGET_COLUMNS if c not in dataframe.columns]
+    if missing:
+        session_state["active_dataset_identity"] = None
+        session_state["dataset"] = None
+        session_state["training_result"] = None
+        session_state["export_result"] = None
+        return False, "El CSV debe incluir las columnas mínimas: " + ", ".join(FEATURE_COLUMNS + TARGET_COLUMNS)
+
+    session_state["dataset"] = dataframe
+    session_state["dataset_metadata"] = None
+    session_state["data_source_type"] = "csv_propio"
+    session_state["data_source_label"] = f"CSV Propio: {filename} ({len(dataframe)} filas)"
+    session_state["data_source_details"] = {
+        "fuente_datos": "csv_propio",
+        "origen_detalle": "Dataset cargado externamente en CSV por el usuario",
+        "filename": filename,
+        "n_samples": len(dataframe),
+        "content_hash": content_hash,
+    }
+    session_state["active_dataset_identity"] = csv_identity
+    session_state["training_result"] = None
+    session_state["export_result"] = None
+    return True, "updated"

@@ -1,0 +1,21 @@
+﻿usage: cli.py [-h]
+              {audit-data,generate-data,evaluate,recompute-metrics,export-model,validate-bundle,optimize,smoke}
+              ...
+
+CLI de Revisi├│n Metodol├│gica ÔÇö Gemelo Digital Agroecol├│gico
+
+positional arguments:
+  {audit-data,generate-data,evaluate,recompute-metrics,export-model,validate-bundle,optimize,smoke}
+                        Comandos disponibles
+    audit-data          Audita integridad de dataset
+    generate-data       Genera dataset corregido
+    evaluate            Ejecuta CV anidada sin contaminaci├│n
+    recompute-metrics   Reconstruye m├®tricas desde OOF
+    export-model        Entrena y exporta bundle universal vinculado a un run
+    validate-bundle     Valida un bundle exportado
+    optimize            Ejecuta optimizaci├│n multiobjetivo con NSGA-II
+    smoke               Ejecuta el smoke test integral desacoplado (T19)
+
+options:
+  -h, --help            show this help message and exit
+

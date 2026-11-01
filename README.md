@@ -223,6 +223,11 @@ Para reproducir la auditoría se requieren los scripts ubicados en `respaldo_sur
 - **Redondeo:** Existe un redondeo en la exportación de las soluciones que puede resultar ocasionalmente en un punto dominado al perder su precisión fraccionaria original.
 - **Pruebas Estadísticas:** Los resultados de las pruebas de Friedman y Nemenyi están documentados en el Excel de respaldo. No obstante, los errores absolutos (MAE) desagregados por partición o *fold* necesarios para recalcular la prueba de forma independiente no se conservaron en la versión final de la base de datos de entrenamiento.
 
+## Revisión Metodológica y Científica (2026)
+
+Para conocer en detalle la auditoría metodológica, las correcciones de fuga de datos (*data leakage*), la implementación del paquete científico (`scientific_core/`), la herramienta CLI desacoplada (`cli.py`), el registro histórico de 137 pruebas técnicas documentadas y los resultados de la campaña predictiva multimodelo congelada, consulta el documento de transferencia técnica:
+- [Resumen de Cambios Respecto a `main`](docs/revision_metodologica/RESUMEN_CAMBIOS_RESPECTO_MAIN.md)
+
 ## Licencia
 
 El código fuente de este proyecto se distribuye bajo la [Licencia MIT](LICENSE). 

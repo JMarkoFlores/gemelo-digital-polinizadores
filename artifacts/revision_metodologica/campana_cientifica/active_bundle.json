@@ -1,0 +1,8 @@
+{
+  "bundle_id": "bundle_ridge_078f18a6664f",
+  "bundle_dir": "bundle_ridge_078f18a6664f",
+  "model_type": "ridge",
+  "model_filename": "model_ridge.pkl",
+  "published_at_utc": 1793288796.6695821,
+  "test_only": false
+}

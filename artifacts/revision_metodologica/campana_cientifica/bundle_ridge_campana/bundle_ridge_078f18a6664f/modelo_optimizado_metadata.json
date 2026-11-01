@@ -1,0 +1,303 @@
+{
+  "run_id": "run_20261029_153857",
+  "run_dir": "/app/artifacts/revision_metodologica/campana_cientifica/run_20261029_153857",
+  "test_only": false,
+  "is_test_bundle": false,
+  "dataset_rows": 320,
+  "dataset_sha256": "0467f8ba1f04c6b9b5d5947074479acada6fdc259029219224e2bf1b4b7abb64",
+  "selected_family": "ridge",
+  "winning_hyperparameters": {
+    "alpha": 0.1,
+    "batch_size": 32,
+    "early_stopping_patience": 10,
+    "internal_monitor_val_split": 0.2,
+    "max_epochs": 100
+  },
+  "final_selection_policy": {
+    "method": "mean_inner_cv_aggregation_all_folds",
+    "metric": "inner_macro_mae",
+    "tie_breaker_metric": "inner_macro_rmse",
+    "aggregation": "mean_across_all_outer_folds",
+    "deterministic_tie_breaker": "canonical_param_json_lexicographical",
+    "winning_mean_score": 1.2915618730915919,
+    "winning_mean_rmse": 1.6583196176422965,
+    "winning_params": {
+      "alpha": 0.1,
+      "batch_size": 32,
+      "early_stopping_patience": 10,
+      "internal_monitor_val_split": 0.2,
+      "max_epochs": 100
+    },
+    "selected_params": {
+      "alpha": 0.1,
+      "batch_size": 32,
+      "early_stopping_patience": 10,
+      "internal_monitor_val_split": 0.2,
+      "max_epochs": 100
+    },
+    "candidates": [
+      {
+        "params_str": "{\"alpha\": 0.1, \"batch_size\": 32, \"early_stopping_patience\": 10, \"internal_monitor_val_split\": 0.2, \"max_epochs\": 100}",
+        "params": {
+          "alpha": 0.1,
+          "batch_size": 32,
+          "early_stopping_patience": 10,
+          "internal_monitor_val_split": 0.2,
+          "max_epochs": 100
+        },
+        "canonical_repr": "{\"alpha\": 0.1, \"batch_size\": 32, \"early_stopping_patience\": 10, \"internal_monitor_val_split\": 0.2, \"max_epochs\": 100}",
+        "mean_inner_macro_mae": 1.2915618730915919,
+        "mean_inner_macro_rmse": 1.6583196176422965,
+        "n_evaluations": 5,
+        "mean_optimal_epochs": 20
+      },
+      {
+        "params_str": "{\"alpha\": 1.0, \"batch_size\": 32, \"early_stopping_patience\": 10, \"internal_monitor_val_split\": 0.2, \"max_epochs\": 100}",
+        "params": {
+          "alpha": 1.0,
+          "batch_size": 32,
+          "early_stopping_patience": 10,
+          "internal_monitor_val_split": 0.2,
+          "max_epochs": 100
+        },
+        "canonical_repr": "{\"alpha\": 1.0, \"batch_size\": 32, \"early_stopping_patience\": 10, \"internal_monitor_val_split\": 0.2, \"max_epochs\": 100}",
+        "mean_inner_macro_mae": 1.2941843993133968,
+        "mean_inner_macro_rmse": 1.65911342965232,
+        "n_evaluations": 5,
+        "mean_optimal_epochs": 20
+      },
+      {
+        "params_str": "{\"alpha\": 10.0, \"batch_size\": 32, \"early_stopping_patience\": 10, \"internal_monitor_val_split\": 0.2, \"max_epochs\": 100}",
+        "params": {
+          "alpha": 10.0,
+          "batch_size": 32,
+          "early_stopping_patience": 10,
+          "internal_monitor_val_split": 0.2,
+          "max_epochs": 100
+        },
+        "canonical_repr": "{\"alpha\": 10.0, \"batch_size\": 32, \"early_stopping_patience\": 10, \"internal_monitor_val_split\": 0.2, \"max_epochs\": 100}",
+        "mean_inner_macro_mae": 1.4336167150073584,
+        "mean_inner_macro_rmse": 1.8073192225562202,
+        "n_evaluations": 5,
+        "mean_optimal_epochs": 20
+      },
+      {
+        "params_str": "{\"alpha\": 50.0, \"batch_size\": 32, \"early_stopping_patience\": 10, \"internal_monitor_val_split\": 0.2, \"max_epochs\": 100}",
+        "params": {
+          "alpha": 50.0,
+          "batch_size": 32,
+          "early_stopping_patience": 10,
+          "internal_monitor_val_split": 0.2,
+          "max_epochs": 100
+        },
+        "canonical_repr": "{\"alpha\": 50.0, \"batch_size\": 32, \"early_stopping_patience\": 10, \"internal_monitor_val_split\": 0.2, \"max_epochs\": 100}",
+        "mean_inner_macro_mae": 2.37475553088718,
+        "mean_inner_macro_rmse": 2.912184680832757,
+        "n_evaluations": 5,
+        "mean_optimal_epochs": 20
+      }
+    ],
+    "n_evaluations": 5,
+    "all_candidates_summary": [
+      {
+        "params": {
+          "alpha": 0.1,
+          "batch_size": 32,
+          "early_stopping_patience": 10,
+          "internal_monitor_val_split": 0.2,
+          "max_epochs": 100
+        },
+        "mean_inner_macro_mae": 1.2915618730915919,
+        "mean_inner_macro_rmse": 1.6583196176422965,
+        "n_evaluations": 5
+      },
+      {
+        "params": {
+          "alpha": 1.0,
+          "batch_size": 32,
+          "early_stopping_patience": 10,
+          "internal_monitor_val_split": 0.2,
+          "max_epochs": 100
+        },
+        "mean_inner_macro_mae": 1.2941843993133968,
+        "mean_inner_macro_rmse": 1.65911342965232,
+        "n_evaluations": 5
+      },
+      {
+        "params": {
+          "alpha": 10.0,
+          "batch_size": 32,
+          "early_stopping_patience": 10,
+          "internal_monitor_val_split": 0.2,
+          "max_epochs": 100
+        },
+        "mean_inner_macro_mae": 1.4336167150073584,
+        "mean_inner_macro_rmse": 1.8073192225562202,
+        "n_evaluations": 5
+      },
+      {
+        "params": {
+          "alpha": 50.0,
+          "batch_size": 32,
+          "early_stopping_patience": 10,
+          "internal_monitor_val_split": 0.2,
+          "max_epochs": 100
+        },
+        "mean_inner_macro_mae": 2.37475553088718,
+        "mean_inner_macro_rmse": 2.912184680832757,
+        "n_evaluations": 5
+      }
+    ],
+    "rationale": "Configuración seleccionada por menor MAE macro promedio a través de todos los folds internos de todas las particiones externas para mitigar el sesgo de fold particular. Desempate determinista por menor RMSE y orden canónico de parámetros.",
+    "nota_metodologica_agregacion": "Limitación metodológica: los folds internos pertenecen a particiones de entrenamiento externas que comparten entre 75% y 80% de datos comunes. Las evaluaciones internas no constituyen observaciones independientes desde el punto de vista inferencial."
+  },
+  "optimal_epochs": null,
+  "observed_training_ranges": {
+    "crop_area_pct": [
+      31.84,
+      87.1
+    ],
+    "natural_area_pct": [
+      5.26,
+      39.73
+    ],
+    "floral_strips_pct": [
+      1.08,
+      14.99
+    ],
+    "pesticide_level": [
+      0.05,
+      94.95
+    ],
+    "soil_management_score": [
+      10.39,
+      94.9
+    ],
+    "temperature_c": [
+      15.7,
+      32.83
+    ],
+    "precipitation_mm": [
+      296.66,
+      1950.08
+    ],
+    "landscape_diversity": [
+      0.4307,
+      0.96
+    ]
+  },
+  "cv_evaluation_reference": {
+    "CV_MAE_Mean": 1.288445148865382,
+    "CV_RMSE_Mean": 1.6512590448061624,
+    "CV_R2_Mean": 0.9781571009506782,
+    "nota_metodologica": "Métricas derivadas de Nested Cross-Validation en fase de desarrollo. No representan una evaluación independiente del artefacto final reajustado."
+  },
+  "fuente_datos": "calibrado_revision",
+  "region_name": "Valle del Cauca (Colombia)",
+  "schema_version": "2.0_revision_metodologica",
+  "model_type": "ridge",
+  "feature_names": [
+    "crop_area_pct",
+    "natural_area_pct",
+    "floral_strips_pct",
+    "pesticide_level",
+    "soil_management_score",
+    "temperature_c",
+    "precipitation_mm",
+    "landscape_diversity"
+  ],
+  "target_names": [
+    "crop_yield_index",
+    "pollinator_abundance_index",
+    "pollinator_diversity_index"
+  ],
+  "physical_bounds": {
+    "crop_area_pct": [
+      0.0,
+      100.0
+    ],
+    "natural_area_pct": [
+      0.0,
+      100.0
+    ],
+    "floral_strips_pct": [
+      0.0,
+      100.0
+    ],
+    "pesticide_level": [
+      0.0,
+      100.0
+    ],
+    "soil_management_score": [
+      0.0,
+      100.0
+    ],
+    "temperature_c": [
+      5.0,
+      45.0
+    ],
+    "precipitation_mm": [
+      0.0,
+      5000.0
+    ],
+    "landscape_diversity": [
+      0.0,
+      1.0
+    ]
+  },
+  "feature_bounds": {
+    "crop_area_pct": [
+      0.0,
+      100.0
+    ],
+    "natural_area_pct": [
+      0.0,
+      100.0
+    ],
+    "floral_strips_pct": [
+      0.0,
+      100.0
+    ],
+    "pesticide_level": [
+      0.0,
+      100.0
+    ],
+    "soil_management_score": [
+      0.0,
+      100.0
+    ],
+    "temperature_c": [
+      5.0,
+      45.0
+    ],
+    "precipitation_mm": [
+      0.0,
+      5000.0
+    ],
+    "landscape_diversity": [
+      0.0,
+      1.0
+    ]
+  },
+  "preprocessing_contract": {
+    "scaler_x_applied": true,
+    "scaler_y_applied": true,
+    "inverse_transform_required": true
+  },
+  "target_scaler_mean": [
+    82.82184379100799,
+    98.70140624046326,
+    32.89484363794327
+  ],
+  "target_scaler_scale": [
+    13.95817971457415,
+    11.11427338612422,
+    9.924561110197708
+  ],
+  "model_filename": "model_ridge.pkl",
+  "file_hashes": {
+    "scalers.pkl": "89ac7076de7fa860ca27bd288b375d455b7f68374f2e4bd1da64000c2d5c4096",
+    "model_ridge.pkl": "38c15570ca5c494be664b3706556dcfa10160f799fb0b9aad57533901e4d93a1"
+  },
+  "bundle_id": "bundle_ridge_078f18a6664f"
+}
